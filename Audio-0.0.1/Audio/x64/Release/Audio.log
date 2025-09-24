@@ -1,0 +1,22 @@
+﻿  Device.cpp
+C:\Users\Администратор\Desktop\projects\C++\GovnoClick\Audio-0.0.1\src\Device.cpp(1,10): error C1083: Не удается открыть файл включение: Audio/Device.hpp: No such file or directory,
+  Listener.cpp
+C:\Users\Администратор\Desktop\projects\C++\GovnoClick\Audio-0.0.1\src\Listener.cpp(1,10): error C1083: Не удается открыть файл включение: Audio/Listener.hpp: No such file or directory,
+  ListenerImpl.cpp
+C:\Users\Администратор\Desktop\projects\C++\GovnoClick\Audio-0.0.1\src\ListenerImpl.hpp(4,10): error C1083: Не удается открыть файл включение: Audio/Vector.hpp: No such file or directory,
+  (компиляция исходного файла "src/ListenerImpl.cpp")
+  
+  Sound.cpp
+C:\Users\Администратор\Desktop\projects\C++\GovnoClick\Audio-0.0.1\src\Sound.cpp(1,10): error C1083: Не удается открыть файл включение: Audio/Device.hpp: No such file or directory,
+  SoundImpl.cpp
+C:\Users\Администратор\Desktop\projects\C++\GovnoClick\Audio-0.0.1\src\SoundImpl.hpp(3,10): error C1083: Не удается открыть файл включение: Audio/Listener.hpp: No such file or directory,
+  (компиляция исходного файла "src/SoundImpl.cpp")
+  
+  Waveform.cpp
+C:\Users\Администратор\Desktop\projects\C++\GovnoClick\Audio-0.0.1\src\WaveformImpl.hpp(3,10): error C1083: Не удается открыть файл включение: Audio/Waveform.hpp: No such file or directory,
+  (компиляция исходного файла "src/Waveform.cpp")
+  
+  WaveformImpl.cpp
+C:\Users\Администратор\Desktop\projects\C++\GovnoClick\Audio-0.0.1\src\WaveformImpl.hpp(3,10): error C1083: Не удается открыть файл включение: Audio/Waveform.hpp: No such file or directory,
+  (компиляция исходного файла "src/WaveformImpl.cpp")
+  
