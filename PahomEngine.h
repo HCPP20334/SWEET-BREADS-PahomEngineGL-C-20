@@ -24,7 +24,8 @@
 #include <Audio/Sound.hpp>
 #include "JoyStick.h"
 #pragma comment(lib,"Audio.lib")
-
+typedef void (APIENTRY* PFNGLBINDBUFFERPROC)(GLenum target, GLuint buffer);
+typedef void (APIENTRY* PFNGLGETBUFFERPARAMETERIVPROC)(GLenum target, GLenum pname, GLint* params);
 
 // typedefs
 int64_t fstack(void* reg,std::string param_name) {
@@ -152,6 +153,10 @@ namespace ImGui {
         const char* format = (flags & ImGuiInputTextFlags_CharsHexadecimal) ? "%08X" : "%d";
         return InputScalar(label, ImGuiDataType_S64, (void*)v, (void*)(step > 0 ? &step : NULL), (void*)(step_fast > 0 ? &step_fast : NULL), format, flags);
     }
+    bool SliderInt64(const char* label, int64_t* v, int64_t v_min, int64_t v_max, const char* format, ImGuiSliderFlags flags)
+    {
+        return SliderScalar(label, ImGuiDataType_S64, v, &v_min, &v_max, format, flags);
+    }
 }
 ImVec4 RGBAtoIV4(int r, int g, int b, int a) {
     float newr = r / 255;
@@ -160,6 +165,10 @@ ImVec4 RGBAtoIV4(int r, int g, int b, int a) {
     float newa = a;
     return ImVec4(newr, newg, newb, newa);
 }
+
+
+
+//
 class CImage {
 public:
 
@@ -175,8 +184,11 @@ public:
     uint64_t InitCImage(std::string png_file);
     bool CreateImage(int64_t w, int64_t h);
     std::string getAspectRatio(int x, int y);
-    int64_t GetImageSize(std::string filename);
+    int64_t GetImageSize(int width, int height);
+    int64_t GetVRAMSize(GLuint vbo);
+    int64_t GetFileSize(const std::string& filename);
 };
+
 std::string CImage::getAspectRatio(int x, int y) {
     double ratio = (double)x / y;
     struct { double val; std::string name; } list[] = {
@@ -207,9 +219,18 @@ uint64_t CImage::InitCImage(std::string png_file) {
     LoadTextureFromFile((png_file).c_str(), &gl_buffer, &fIctx, &fIcty, &CICharBuffer);
     return 3;
 }
-int64_t CImage::GetImageSize(std::string filename) {
+int64_t CImage::GetImageSize(int width, int height) {
+    // Размер в видеопамяти = ширина * высота * 4 (для RGBA, 4 байта на пиксель)
+    return static_cast<int64_t>(width) * height * 4;
+}
+int64_t CImage::GetFileSize(const std::string& filename) {
     std::ifstream ImageStream(filename, std::ios::binary | std::ios::ate);
+    if (!ImageStream.is_open()) {
+        std::cerr << "[CImage::GetFileSize] Failed to open file: " << filename << std::endl;
+        return 0;
+    }
     std::streampos fileSize = ImageStream.tellg();
+    ImageStream.close();
     return fileSize;
 }
 bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height, unsigned char* imgBuffer) {
@@ -245,17 +266,20 @@ bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
     }
 }//
 struct KurlikAUDIO {
-    std::string audiolist[5] = { "assets/audio/kurlik.wav",
+    std::string audiolist[6] = { "assets/audio/kurlik.wav",
                                  "assets/audio/voda.wav",
                                  "assets/audio/krik.wav",
                                  "assets/audio/aaa.wav",
-                                 "assets/audio/mrrobot.wav"};
+                                 "assets/audio/mrrobot.wav",
+                                 "assets/audio/a.wav"
+    };
     void play(int64_t i);
     void play2(int64_t i);
+    void play3(int64_t i);
     int64_t idx = 0;
     float masterVolume = 0.02f;
     void pause();
-    Audio::Sound audioDevice,audioDevice2;
+    Audio::Sound audioDevice,audioDevice2,audioDevice3;
    
     
 };
@@ -273,6 +297,13 @@ void KurlikAUDIO::play2(int64_t i) {
     audioDevice2.play();
     audioDevice2.setVolume(masterVolume);
 }
+void KurlikAUDIO::play3(int64_t i) {
+    //  PlaySoundA(file.c_str(), NULL, 1);
+    idx = i;
+    audioDevice3.loadSound(audiolist[idx]);
+    audioDevice3.play();
+    audioDevice3.setVolume(masterVolume + 0.1f);
+}
 void KurlikAUDIO::pause() {
     audioDevice.pause();
 }
@@ -286,7 +317,13 @@ struct STRINGSDATA {
         " ЫЫ     ЫЫ    ЫЫ   ЫЫ   ЫЫЫЫЫЫЫЫЫЫ ЫЫ    ЫЫ ЫЫ  ЫЫЫ   ЫЫ   \n"
         " ЫЫЫЫЫЫЫ      ЫЫЫЫЫЫЫ   ЫЫЫ    ЫЫЫ ЫЫ    ЫЫ ЫЫ   Ы    ЫЫ   \n"
         " ЫЫ           ЫЫ   ЫЫ   ЫЫЫ    ЫЫЫ   ЫЫЫЫ   ЫЫ        ЫЫ   \n"
-        "                Engine b0.23.                            \n";
+        "                                                           \n"
+        " ЫЫЫЫЫЫЫЫ     ЫЫ    ЫЫ  ЫЫЫЫЫЫЫ  ЫЫ  ЫЫ    ЫЫ   ЫЫЫЫЫЫЫ    \n"
+        " ЫЫ           ЫЫ Ы  ЫЫ  ЫЫ       ЫЫ  ЫЫ Ы  ЫЫ   ЫЫ         \n"
+        " ЫЫЫЫЫЫЫЫ     ЫЫ  Ы ЫЫ  ЫЫ ЫЫЫЫ  ЫЫ  ЫЫ  Ы ЫЫ   ЫЫЫЫЫЫЫ    \n"
+        " ЫЫ           ЫЫ   ЫЫЫ  ЫЫ   ЫЫ  ЫЫ  ЫЫ   ЫЫЫ   ЫЫ         \n" 
+        " ЫЫЫЫЫЫЫЫ     ЫЫ    ЫЫ  ЫЫЫЫЫЫЫ  ЫЫ  ЫЫ    ЫЫ   ЫЫЫЫЫЫЫ    \n"
+        "                Engine b0.24  .                            \n";
 };
 //
 // defines
@@ -300,12 +337,13 @@ struct STRINGSDATA {
 
 //
 struct ASSETSDATA {
-    std::string asset[6] = { "assets/logo.png",   //0
+    std::string asset[7] = { "assets/logo.png",   //0
                              "assets/back.jpg",   //1
                              "assets/bread.png",  //2
                              "assets/pahom.png",  //3
                              "assets/pahom2.png",  //4
-                             "assets/panel.png"
+                             "assets/panel.png",
+                             "assets/777.png"
     }; //5
 
 
@@ -331,6 +369,8 @@ struct KEYMAPDATA {
     int8_t u8BACK = 'D';
     int8_t u8RESET = 'R';
     int8_t u8SPACE = VK_SPACE;
+    int8_t u8ButtonLeft = 'L';
+    int8_t u8ButtonRight = 'R';
     int64_t kbDelay = 0;
     int64_t vMaxDelay = 1;
     int64_t i64BACKGamepad = XINPUT_GAMEPAD_DPAD_LEFT;
@@ -370,7 +410,7 @@ struct MEMORYDATA {
         getData(&i64MemoryFree , 2);
         getData(&i64MemoryUsed , 0);
         std::string mem_str = 
-            "\nTotal:   " + std::to_string(i64MemoryTotal) + " GB"
+            "Total:   " + std::to_string(i64MemoryTotal) + " GB"
             "\nUsed :   " + std::to_string(i64MemoryUsed)  + " GB"
             "\nFree :   " + std::to_string(i64MemoryFree)  + " GB";
         return mem_str;
@@ -408,11 +448,25 @@ struct GameEvent {
     }
   
 };
+struct EXCEPTIONS {
+    bool ErrorTextures = false;
+    std::string sLastError;
+    void* pLastStack = nullptr;
+    void Write(std::string t, void* pErrorSegment) {
+        ErrorTextures = true;
+        sLastError += t;
+        pLastStack = pErrorSegment;
+    }
+};
 struct PahomEngineStruct {
+    //
+    std::string sBuild = "0.4.1510";
+    //
     bool CVsync = true;
     uint64_t fCPoint = 0;
     int64_t fStep = 13;
-    CImage* img = new CImage;
+    std::unique_ptr<CImage> img = std::make_unique<CImage>();
+    std::unique_ptr<JoyStickAPI> ptrGamepad1 = std::make_unique<JoyStickAPI>(1);
     bool StyleLoad();
     ImVec4 RGBA(float r, float g, float b, float a);
     void setTextCenter(const char* text);
@@ -427,6 +481,7 @@ struct PahomEngineStruct {
     KurlikAUDIO audio;
     GameEvent Event;
     MEMORYDATA Mem;
+    std::unique_ptr<EXCEPTIONS> Exceptions = std::make_unique<EXCEPTIONS>();
     // other value
     bool bSettings = false;
     ImVec4 fillColorRGBA;//RGBA(133, 133, 133, 255)
@@ -447,6 +502,7 @@ struct PahomEngineStruct {
     bool bDebug = true;
     bool bFullscreen = false;
     bool bGameOver = false;
+    int64_t i64CPUDelay = 10;
     // main flags
     bool bStartGame = false;
     float fStepMove = 6.0f;
@@ -459,8 +515,10 @@ struct PahomEngineStruct {
     bool bStartGameFlag = false;
     bool bIsRevesed = false;
     bool bDebugText = false;
+    bool bBoost777 = false;
+    int64_t i64RandBoost = 0;
+    int64_t i64ValuesRands[4] = { 50 , 100, 256, 777 };
     bool GetGamepadKey(int64_t iKey);
-    JoyStickAPI* ptrGamepad1 = new JoyStickAPI(1);
     int64_t i64BreadSize[2] = { 64,64 };
     int64_t i64PahomSize[2] = { 128,128 };
     void Text(ImVec4 col, std::string text);
@@ -531,12 +589,6 @@ bool PahomEngineStruct::CheckColiision() {
         fPahomPosY < fBreadPosY + i64BreadSize[1] &&
         fPahomPosY + i64PahomSize[1] > fBreadPosY
         );
-    /*return (
-        playerBox.x < breadBox.x + breadBox.width &&
-        playerBox.x + playerBox.width > breadBox.x &&
-        playerBox.y < breadBox.y + breadBox.height &&
-        playerBox.y + playerBox.height > breadBox.y
-        );*/
 }
 void PahomEngineStruct::setItemCenterX(float x) {
     float fItemSizeX = x;
@@ -563,12 +615,18 @@ ImVec4  PahomEngineStruct::RGBA(float r, float g, float b, float a) {
 }
 void PahomEngineStruct::logo() {
     std::string PAHOM_ENGINE =
-        " ЫЫЫЫЫЫЫЫЫЫ     ЫЫЫЫ    ЫЫЫ    ЫЫЫ   ЫЫЫЫ   ЫЫЫ    ЫЫЫЫЫ   \n"
-        " ЫЫ      ЫЫ   ЫЫ   ЫЫ   ЫЫЫ    ЫЫЫ ЫЫ    ЫЫ ЫЫ ЫЫ ЫЫ  ЫЫ   \n"
-        " ЫЫ     ЫЫ    ЫЫ   ЫЫ   ЫЫЫЫЫЫЫЫЫЫ ЫЫ    ЫЫ ЫЫ  ЫЫЫ   ЫЫ   \n"
-        " ЫЫЫЫЫЫЫ      ЫЫЫЫЫЫЫ   ЫЫЫ    ЫЫЫ ЫЫ    ЫЫ ЫЫ   Ы    ЫЫ   \n"
-        " ЫЫ           ЫЫ   ЫЫ   ЫЫЫ    ЫЫЫ   ЫЫЫЫ   ЫЫ        ЫЫ   \n"
-        "                Engine b0.23.                            \n";
+     " ______   ______     __  __     ______     __    __             \n"
+     "/\\  == \\ /\\  __ \\   /\\ \\_\\ \\   /\\  __ \\   /\\ \"-./  \\            \n"
+     "\\ \\  _-/ \\ \\  __ \\  \\ \\  __ \\  \\ \\ \\/\\ \\  \\ \\ \\-./\\ \\           \n"
+     " \\ \\_\\    \\ \\_\\ \\_\\  \\ \\_\\ \\_\\  \\ \\_____\\  \\ \\_\\ \\ \\_\\          \n"
+     "  \\/_/     \\/_/\\/_/   \\/_/\\/_/   \\/_____/   \\/_/  \\/_/          \n"
+     "                                                                \n"
+     " ______     __   __     ______     __     __   __     ______    \n"
+     "/\\  ___\\   /\\ \"-.\\ \\   /\\  ___\\   /\\ \\   /\\ \"-.\\ \\   /\\  ___\\   \n"
+     "\\ \\  __\\   \\ \\ \\-.  \\  \\ \\ \\__ \\  \\ \\ \\  \\ \\ \\-.  \\  \\ \\  __\\   \n"
+     " \\ \\_____\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\  \\ \\_\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\ \n"
+     "  \\/_____/   \\/_/ \\/_/   \\/_____/   \\/_/   \\/_/ \\/_/   \\/_____/ \n"
+     "                                                                \n";
     std::cout << PAHOM_ENGINE << std::endl;
 }
 void PahomEngineStruct::progress_bar(float fragtion) {
@@ -576,7 +634,7 @@ void PahomEngineStruct::progress_bar(float fragtion) {
     COORD nullcd = { 0,0 };
     HANDLE hcon = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleCursorPosition(hcon, nullcd);
-    std::string str_array[18] = {
+    std::string str_array[] = {
         "[----------]",//0
         "[Ы---------]",//1
         "[ЫЫ--------]",//2
@@ -654,5 +712,5 @@ bool PahomEngineStruct::StyleLoad() {
     style.FrameBorderSize = 1;
     return 0;
 }
-PahomEngineStruct* PahomEngine = new PahomEngineStruct;
+auto PahomEngine = std::make_unique<PahomEngineStruct>();
 

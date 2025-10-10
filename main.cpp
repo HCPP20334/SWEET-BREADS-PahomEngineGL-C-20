@@ -1,4 +1,5 @@
 ﻿#include "PahomEngine.h"
+#include "thread"
 #pragma once
 
 
@@ -27,6 +28,13 @@ bool b_FatalError = false;
 int64_t ptrint64_t(GLuint tx) {
     return (int64_t)(void*)tx;
 }
+struct remapkeys {
+    std::string sKeyLeft;
+    std::string sKeyRight;
+    std::string sButtonLeft;
+    std::string sButtonRight;
+};
+auto Remap = std::make_unique<remapkeys>();
 int main(int, char** argv)
 {
 
@@ -115,6 +123,12 @@ int main(int, char** argv)
     ImFont* font3 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 15, nullptr, io.Fonts->GetGlyphRangesCyrillic());
     ImFont* font10 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 10, nullptr, io.Fonts->GetGlyphRangesCyrillic());
     ImFont* font50 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 40, nullptr, io.Fonts->GetGlyphRangesCyrillic());
+    if (!font15) {
+        std::cout << "[PahomEngine::Font] file assets/BOUNDED.ttf not found!" << std::endl;
+    }
+    else {
+        std::cout << "[PahomEngine::Font] file assets/BOUNDED.ttf loaded" << std::endl;
+    }
     if (PahomEngine->ptrGamepad1->IsConnected()) {
         std::cout << "[PahomEngine::Controls->JoyStickAPI] Gamepad 0 connected!" << std::endl;
     }
@@ -149,10 +163,20 @@ int main(int, char** argv)
         }
         JEApp.ClearFreeMemory();
         static std::string sError;
-        if (PahomEngine->CVsync) {Sleep(13);} else { Sleep(0);}
+        if (PahomEngine->CVsync) {
+            auto start = std::chrono::high_resolution_clock::now();
+            if (PahomEngine->CVsync) {
+                auto end = std::chrono::high_resolution_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+                if (elapsed < PahomEngine->i64CPUDelay) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(PahomEngine->i64CPUDelay - elapsed));
+                }
+                start = std::chrono::high_resolution_clock::now();
+            }
+        } else { Sleep(0);}
         static bool bLoaderFiles = false;
         static bool ftx = 0.0f;
-        static int64_t i64OGL3TxCount = 0, i64Exceptions = 0, i64OGL3Errors = 0, i64OGL3TxTotalSize = 0;
+        static int64_t i64OGL3TxCount = 0, i64Exceptions = 0, i64OGL3Errors = 0, i64OGL3TxTotalSize = 0, i64VRAMSize = 0;
         ImGui::Begin("gameFrame", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
         if (ImGui::BeginPopup("ogl3_error", ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("PahomEngine::exception");
@@ -166,37 +190,49 @@ int main(int, char** argv)
         ImGui::SetWindowPos(ImVec2(0, 0));
         if (PahomEngine->bLoadingFrame) {
             b_FatalError = false;
+            static int64_t tid = 0, i64FrameDelay = 0;
             if (bLoaderFiles) {
-                for (int tid = 0; tid <= 5; tid++) {
-                    //PahomEngine->progress_bar(ftx);
-                    if (PahomEngine->img->LoadTextureFromFile(reinterpret_cast<const char*>(PahomEngine->assets.asset[tid].c_str()),
-                        &PahomEngine->ImageData.TextureArray[tid],
-                        &PahomEngine->ImageData.TextureX[tid],
-                        &PahomEngine->ImageData.TextureY[tid],
-                        &PahomEngine->ImageData.TextureBufferArray[tid]))
-                    {
-                        i64OGL3TxTotalSize += PahomEngine->img->GetImageSize(PahomEngine->assets.asset[tid]);
-                        i64OGL3TxCount++;
-                        ftx = (float)tid / 5;
-                        std::cout << "[PahomEngine::OGL] Load texture:"
-                            << PahomEngine->assets.asset[tid]
-                            << " id:" << tid << " ptrid(void*)"
-                            << PahomEngine->ImageData.TextureArray[tid]
-                            << " stack:" << &PahomEngine->ImageData.TextureArray[tid] << std::endl;
-                    }
-                    else {
-                        std::cout << "[PahomEngine::OGL] Load texture:" << PahomEngine->assets.asset[tid] << " error!" << std::endl;
-                        i64Exceptions++;
-                        sError += "\n Load Texture Error!! \nstack="+ str_stack(&PahomEngine->ImageData.TextureBufferArray[tid],"PahomEngine->ImageData.TextureBufferArray[tid]") + "\nfunc:PahomEngine->img->LoadTextureFromFile(reinterpret_cast<const char*>(PahomEngine->assets.asset[tid].c_str()),\n"
-                            " & PahomEngine->ImageData.TextureArray[tid],\n"
-                            "  & PahomEngine->ImageData.TextureX[tid],\n"
-                            "& PahomEngine->ImageData.TextureY[tid],\n"
-                            "& PahomEngine->ImageData.TextureBufferArray[tid])\n";
+                //PahomEngine->progress_bar(ftx);
+                if (PahomEngine->img->LoadTextureFromFile(reinterpret_cast<const char*>(PahomEngine->assets.asset[tid].c_str()),
+                    &PahomEngine->ImageData.TextureArray[tid],
+                    &PahomEngine->ImageData.TextureX[tid],
+                    &PahomEngine->ImageData.TextureY[tid],
+                    &PahomEngine->ImageData.TextureBufferArray[tid]))
+                {
+
+                    i64OGL3TxTotalSize += PahomEngine->img->GetImageSize(PahomEngine->ImageData.TextureX[tid], PahomEngine->ImageData.TextureY[tid]);
+                    i64OGL3TxCount++;
+                  
+                    std::cout << "[PahomEngine::OGL] Load texture:"
+                        << PahomEngine->assets.asset[tid]
+                        << " id:" << tid << " ptrid(void*)"
+                        << PahomEngine->ImageData.TextureArray[tid]
+                        << " stack:" << &PahomEngine->ImageData.TextureArray[tid] << std::endl;
+                }
+                else {
+                    std::cout << "[PahomEngine::OGL] Load texture:" << PahomEngine->assets.asset[tid] << " error!" << std::endl;
+                    i64Exceptions++;
+                    sError += "\n Load Texture Error!! \nstack=" + str_stack(&PahomEngine->ImageData.TextureBufferArray[tid], "PahomEngine->ImageData.TextureBufferArray[tid]") + "\nfunc:PahomEngine->img->LoadTextureFromFile(reinterpret_cast<const char*>(PahomEngine->assets.asset[tid].c_str()),\n"
+                        " & PahomEngine->ImageData.TextureArray[tid],\n"
+                        "  & PahomEngine->ImageData.TextureX[tid],\n"
+                        "& PahomEngine->ImageData.TextureY[tid],\n"
+                        "& PahomEngine->ImageData.TextureBufferArray[tid])\n";
+                    if (PahomEngine->Exceptions) {
+                        PahomEngine->Exceptions->Write("Load Texture Error!!", (void*)PahomEngine->ImageData.TextureArray[tid]);
                         ImGui::OpenPopup("ogl3_error");
                     }
-            }
-               bLoaderFiles = false;
-               PahomEngine->bLoadingFrameOK = true;
+                    else {
+                        std::cerr << "Error: PahomEngine->Exceptions is nullptr!" << std::endl;
+                    }
+                    ImGui::OpenPopup("ogl3_error");
+                }
+                tid++;
+                if (tid > 6) {
+                    tid = 6;
+                    bLoaderFiles = false;
+                    PahomEngine->bLoadingFrameOK = true;
+                }
+                ftx = (float)tid / 5;
             }
             a++;
             if (a > 2) {
@@ -235,13 +271,35 @@ int main(int, char** argv)
                 ImGui::Text("render_errors     : %d", i64OGL3Errors);
                 ImGui::Text("textures_to_loaded: %d/6", i64OGL3TxCount);
                 ImGui::Text("vram_used_textures: %d KB", i64OGL3TxTotalSize / 1024);
+                ImGui::Text("VRAM: %lld", i64VRAMSize);
+                ImGui::EndPopup();
+            }
+            PahomEngine->setItemCenterX(ImGui::GetWindowSize().x - 200); 
+            ImGui::ProgressBar(ftx, ImVec2(ImGui::GetWindowSize().x - 240, 30),(PahomEngine->assets.asset[tid] + std::to_string(tid) + "/5").c_str());
+            if (ImGui::IsItemClicked()) {
+                ImGui::OpenPopup("tx");
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Нажми для просмотра");
+            }
+            if (ImGui::BeginPopup("tx", ImGuiWindowFlags_AlwaysAutoResize)) {
+                for (int64_t tx = 0; tx <= 6; tx++) {
+                    ImGui::Text("%lld: %s", tx, PahomEngine->assets.asset[tx].c_str());
+                    ImGui::Text("VRAM Used: %lld KB/ FileSize:%lld KB", PahomEngine->img->GetImageSize(PahomEngine->ImageData.TextureX[tx], PahomEngine->ImageData.TextureY[tx]) / 1024,PahomEngine->img->GetFileSize(PahomEngine->assets.asset[tx]) / 1024);
+                    ImGui::SameLine();
+                    ImGui::Image(ptrint64_t(PahomEngine->ImageData.TextureArray[tx]), ImVec2(128, 128));
+                    
+                }
+                if (ImGui::Button("OK", ImVec2(150, 30))) {
+                    ImGui::CloseCurrentPopup();
+                }
                 ImGui::EndPopup();
             }
             if (!PahomEngine->bLoadingFrameOK) {
                 PahomEngine->setTextCenter("Проверка данных");
                 ImGui::TextColored(PahomEngine->fillColorRGBA, "Проверка данных\n%i:%i", i64Cidx, a);
-                ImGui::SameLine();
-                ImGui::Spinner(" ", 12, 2, ImGui::GetColorU32(PahomEngine->RGBA(35, 35, 45, 255)));
+                
+               
                 if (i64Cidx == 3) {
                     bLoaderFiles = false;
                     PahomEngine->bLoadingFrameOK = true;
@@ -267,7 +325,9 @@ int main(int, char** argv)
                             if (ImGui::BeginPopup("volume_custom", ImGuiWindowFlags_AlwaysAutoResize)) {
                                 ImGui::SetCursorPosX(10);
                                 ImGui::TextColored(PahomEngine->RGBA(0, 234, 30, 255), "громкость");
-                                ImGui::SliderFloat("Vol", &PahomEngine->audio.masterVolume, 0.03f, 1.0f);
+                                if (ImGui::SliderFloat("Vol", &PahomEngine->audio.masterVolume, 0.03f, 1.0f)) {
+                                    PahomEngine->audio.play2(iFileIdx);
+                                }
                                 if (PahomEngine->audio.masterVolume == PahomEngine->audio.masterVolume + 0.01) {
                                     PahomEngine->audio.play2(iFileIdx);
                                 }
@@ -291,6 +351,10 @@ int main(int, char** argv)
                                 }
                                 PahomEngine->audio.play2(iFileIdx);
                             }
+                            ImGui::PushFont(font10);
+
+                            ImGui::TextColored(PahomEngine->RGBA(133, 133, 133, 255), "Нажми на надпись 'Громкость' чтобы настроить более точно");
+                            ImGui::PopFont();
                             ImGui::SetCursorPosX(10);
                             ImGui::TextColored(PahomEngine->RGBA(0, 234, 30, 255), "Фуллскрин");
                             ImGui::SameLine();
@@ -313,9 +377,82 @@ int main(int, char** argv)
                             ImGui::SameLine();
                             
                             ImGui::TextColored(PahomEngine->RGBA(0, 234, 30, 255), "%s",(PahomEngine->CVsync ? "60фпс" : "Неогран.фпс"));
+                            ImGui::Text("Управление");
+                            ImGui::Separator();
+                            ImGui::SetNextItemWidth(64);
+                            ImGui::InputText("K Движение влево", &Remap->sKeyLeft, ImGuiInputFlags_None);
+                            ImGui::SetNextItemWidth(64);
+                            ImGui::InputText("K Движение вправо", &Remap->sKeyRight, ImGuiInputFlags_None);
+                            if (ImGui::Button("Применить", ImVec2(150, 30))) {
+                                if (!Remap->sKeyLeft.empty()) {
+                                    PahomEngine->keyMap.u8FORWARD = static_cast<int8_t>(Remap->sKeyLeft[0]);
+                                }
+                                if (!Remap->sKeyRight.empty()) {
+                                    PahomEngine->keyMap.u8BACK = static_cast<int8_t>(Remap->sKeyRight[0]);
+                                }
+
+                            }
+                            static int64_t i64ControlTest = 0;
+                            ImGui::TextColored(PahomEngine->RGBA(0, 234, 30, 255), "Задержка управления"); 
+                            if (ImGui::SliderInt64("kbDelay", &PahomEngine->keyMap.vMaxDelay, 1, 64, "%lld", 0)) {
+                                PahomEngine->keyMap.kbDelay = 0;
+                            }
+                            if (GetKeyState(PahomEngine->keyMap.u8BACK) & 0x8000) {
+                                PahomEngine->keyMap.kbDelay++;
+                                if (PahomEngine->keyMap.kbDelay == PahomEngine->keyMap.vMaxDelay) {
+                                    i64ControlTest++;
+                                    if (i64ControlTest > 100) {
+                                        i64ControlTest = 0;
+                                    }
+                                    PahomEngine->keyMap.kbDelay = 0;
+                                }
+                            }
+                            else {
+                                if (PahomEngine->keyMap.kbDelay == PahomEngine->keyMap.vMaxDelay) {
+                                    i64ControlTest--;
+                                    if (i64ControlTest < 0) {
+                                        i64ControlTest = 0;
+                                    }
+                                    PahomEngine->keyMap.kbDelay = 0;
+                                }
+                            }
+                            if (GetKeyState(PahomEngine->keyMap.u8FORWARD) & 0x8000) {
+                                PahomEngine->keyMap.kbDelay++;
+                                if (PahomEngine->keyMap.kbDelay == PahomEngine->keyMap.vMaxDelay) {
+                                    i64ControlTest--;
+                                    if (i64ControlTest < 0) {
+                                        i64ControlTest = 0;
+                                    }
+                                    PahomEngine->keyMap.kbDelay = 0;
+                                }
+                            }
+
+                            ImGui::PushFont(font10);
+                           
+                            ImGui::TextColored(PahomEngine->RGBA(133, 133, 133, 255), "Проверьте сразу. Внизу слайдер и нажатием\nвлево или в вправо с какой скорость будет двигаться");
+                            ImGui::PopFont();
+                            ImGui::ProgressBar(static_cast<float>(i64ControlTest) / 100.0f, ImVec2(250, 20), (std::to_string(static_cast<float>(i64ControlTest))).c_str());
+                            ImGui::Text("%lld/100:%lld", i64ControlTest, i64ControlTest / 100);
+                            ImGui::Text("Производительность");
+                            ImGui::Separator();
+                            ImGui::Text("Текущий фпс %.0f/%d ms",io.Framerate, PahomEngine->i64CPUDelay);
+                            ImGui::Text("Время кадра (CPU DELAY)");
+                            ImGui::SliderInt64("DELAY", &PahomEngine->i64CPUDelay,0,100,"%lld ms",0);
+                            ImGui::PushFont(font10);
+                            ImGui::TextColored(PahomEngine->RGBA(133, 133, 133, 255), "Очень чувствительный параметр Если у вас очень много фпс\nи огромный фпс  то можно подстроить под себя");
+                            ImGui::PopFont();
+                            if (Remap->sKeyLeft.size() > 1) {
+                                Remap->sKeyLeft = "";
+                            }
+                            if (Remap->sKeyRight.size() > 1) {
+                                Remap->sKeyRight = "";
+                            }
+                           
+                            //
                             ImGui::TextColored(PahomEngine->RGBA(30, 30, 60, 255), "CPU:%s", dCPUBrandString.c_str());
                             ImGui::TextColored(PahomEngine->RGBA(30, 30, 60, 255), "GPU:%s", sGPU->E_Model.c_str());
                             ImGui::TextColored(PahomEngine->RGBA(30, 30, 60, 255), "%s", ptrMemory->MemoryInfo().c_str());
+                            ImGui::Text(("PahomEngine_ogl3_amd64 build " + PahomEngine->sBuild).c_str());
                             ImGui::SetCursorPosX(10);
                             if (ImGui::Button("OK", ImVec2(400, 40))) {
                                 PahomEngine->bSettings = false;
@@ -323,6 +460,8 @@ int main(int, char** argv)
                             }
                             ImGui::EndPopup();
                     }
+                    PahomEngine->setItemCenterX(410);
+                    
                     PahomEngine->setItemCenterX(410);
                     if (ImGui::Button("Продолжить (A)", ImVec2(200, 30))) {
                         PahomEngine->bLoadingFrame = false;
@@ -353,7 +492,14 @@ int main(int, char** argv)
             //
             if(!PahomEngine->bStartGame)
             {
-                
+                if (PahomEngine->Exceptions->ErrorTextures) {
+                    ImGui::SetCursorPos(
+                        ImVec2{
+                            20,20
+                        }
+                    );
+                    ImGui::TextColored(PahomEngine->RGBA(255, 0, 60, 255), "PahomEngine: %s stack=%p", PahomEngine->Exceptions->sLastError.c_str(), PahomEngine->Exceptions->pLastStack);
+                }
                 static float imageSizeX = 200;
                 static float imageSizeY = 200;
                 float maxSize = 256.0f;
@@ -414,6 +560,8 @@ int main(int, char** argv)
                         ImGui::TextColored(PahomEngine->RGBA(133, 133, 133, 255), "Настройки (Параметры)");
                         ImGui::Separator();
                         ImGui::Checkbox("60 фпс", &PahomEngine->CVsync);
+                        ImGui::Checkbox("Отладка", &PahomEngine->bDebugText);
+                        ImGui::Separator();
                         /*ImGui::TextColored(PahomEngine->RGBA(133, 133, 133, 255), "Размер Игрока:   %.1f", phScale); ImGui::SameLine();
                         ImGui::SetNextItemWidth(150);
                         ImGui::SliderFloat("ph", &phScale,0,100,"%.1f");*/
@@ -503,7 +651,7 @@ int main(int, char** argv)
                     ImGui::SetCursorPos(ImVec2(0,0));
                     ImGui::Image((int64_t)(void*)PahomEngine->ImageData.TextureArray[1], ImVec2(PahomEngine->i64WindowSize[0], PahomEngine->i64WindowSize[1]));
                     //
-                 
+                    static int64_t i64RandSeed = 0;
                     if (PahomEngine->bStartGameFlag) {
                         ImGui::SetCursorPos(ImVec2{
                             PahomEngine->fBreadPosX,
@@ -525,8 +673,14 @@ int main(int, char** argv)
                                 //waveOutSetVolume(NULL, (10 / 0xFFFF));
                                 PahomEngine->audio.play(0);
                                 PahomEngine->reloadBreadPos();
-                                PahomEngine->fScoreCount += 1;
+                                
+                                PahomEngine->i64RandBoost = PahomEngine->rand64(100);
+                                PahomEngine->fScoreCount += PahomEngine->bBoost777 ? 20 : 1;
                                 PahomEngine->fBreadPosY = 0;
+                                if (PahomEngine->i64RandBoost < 4) {
+                                    PahomEngine->bBoost777 = true;
+                                    PahomEngine->audio.play3(5);
+                                }
                             }
                         }
                         if (PahomEngine->bGameOver) {
@@ -572,8 +726,8 @@ int main(int, char** argv)
                         ImGui::PushFont(font50);
                         ImGui::SetCursorPos(
                             ImVec2(
-                                (PahomEngine->i64WindowSize[0] - ImGui::CalcTextSize("SWEET BREADS v 0.15\n(alpha_bulid)").x) / 2,
-                                (PahomEngine->i64WindowSize[1] - ImGui::CalcTextSize("SWEET BREADS v 0.15\n(alpha_bulid)").y-200) / 2
+                                (PahomEngine->i64WindowSize[0] - ImGui::CalcTextSize("SWEET BREADS v 0.4.5").x) / 2,
+                                (PahomEngine->i64WindowSize[1] - ImGui::CalcTextSize("SWEET BREADS v 0.4.5").y-200) / 2
                             )
                         );
                         static float r_color = 0.0f;
@@ -597,11 +751,11 @@ int main(int, char** argv)
                             }
                             cl_timer = 0;
                         }
-                        ImGui::TextColored(PahomEngine->RGBA(r_color, g_color, b_color, 255), "SWEET BREADS v 0.15\n(alpha_bulid)");
+                        ImGui::TextColored(PahomEngine->RGBA(r_color, g_color, b_color, 255), "SWEET BREADS v 0.4)");
                        
                         ImGui::PopFont();
-                        PahomEngine->setTextCenter("PahomEngine_ogl3_amd64 build 0.20.301a3");
-                        ImGui::Text("PahomEngine_ogl3_amd64 build 0.20.301a3");
+                        PahomEngine->setTextCenter(("PahomEngine_ogl3_amd64 build " + PahomEngine->sBuild).c_str());
+                        ImGui::Text(("PahomEngine_ogl3_amd64 build " + PahomEngine->sBuild).c_str());
                         PahomEngine->setTextCenter("Написано на С++20 (MSVC)");
                         ImGui::Text("Написано на С++20 (MSVC)");
                         PahomEngine->setTextCenter("BY HCPP");
@@ -638,9 +792,13 @@ int main(int, char** argv)
                     }
                     else {
                         
+                        if (PahomEngine->i64RandBoost == i64RandSeed) {
+                            PahomEngine->bBoost777 = true;
+                            PahomEngine->audio.play3(5);
+                        }
                         PahomEngine->fMaxPahomPosX = static_cast<float>(PahomEngine->i64WindowSize[0]) - 128.0f;
                         PahomEngine->fMaxPahomPosY = static_cast<float>(PahomEngine->i64WindowSize[1]) - 128.0f;
-                        ImGui::Image((int64_t)(void*)PahomEngine->ImageData.TextureArray[2], ImVec2(64, 64));
+                        ImGui::Image((int64_t)(void*)PahomEngine->ImageData.TextureArray[PahomEngine->bBoost777 ? 6 : 2], PahomEngine->bBoost777 ? ImVec2(32, 64) : ImVec2(64, 64));
                         ImGui::SetCursorPos(ImVec2{
                             PahomEngine->fPahomPosX,
                             PahomEngine->fPahomPosY
@@ -689,19 +847,45 @@ int main(int, char** argv)
                         ImGui::SetCursorPosY(30);
                         ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(std::to_string(PahomEngine->fScoreCount).c_str()).x) / 2);
                         ImGui::PushFont(font50);
-                        ImGui::TextColored(PahomEngine->RGBA(255, 255, 255, 255), "%.0f", PahomEngine->fScoreCount);
+                        if (!PahomEngine->bBoost777) {
+                            ImGui::TextColored(PahomEngine->RGBA(255, 255, 255, 255), "%.0f", PahomEngine->fScoreCount);
+                        }
+                        else {
+
+                            static  int64_t i64Timer = 0, i64TimerMin = 0;
+                            i64Timer++;
+                            if (i64Timer > 60) {
+                                i64TimerMin++;
+                                if (i64TimerMin > 10) {
+                                    PahomEngine->bBoost777 = false;
+                                    i64TimerMin = 0;
+                                }
+                                i64Timer = 0;
+
+                            }
+                            ImGui::TextColored(PahomEngine->RGBA(255, 255, 255, 255), "%.0f", PahomEngine->fScoreCount);
+                            ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize("00:00").x) / 2);
+                            ImGui::TextColored(PahomEngine->RGBA(0, 255, 60, 255), "%lld:%lld", i64TimerMin, i64Timer);
+                        }
                         ImGui::PopFont();
                         ImGui::SetCursorPosY(15); ImGui::SetCursorPosX(50);
-                        ImGui::TextColored(PahomEngine->RGBA(255, 255, 255, 255), "FPS: %.0f / фреймов: %i", io.Framerate,ImGui::GetFrameCount());
-                        PahomEngine->bDebugText = (GetAsyncKeyState('G') && GetAsyncKeyState('A') && GetAsyncKeyState('Y')) ? true : false;
+                        ImGui::TextColored(PahomEngine->RGBA(255, 255, 255, 255), "FPS: %.0f / фреймов: %i / %f", io.Framerate,ImGui::GetFrameCount(),io.DeltaTime);
+                      //  PahomEngine->bDebugText = (GetAsyncKeyState('G') && GetAsyncKeyState('A') && GetAsyncKeyState('Y')) ? true : false;
                         PahomEngine->fPahomPosY = PahomEngine->i64WindowSize[1] - PahomEngine->i64PahomSize[1]-27;
                         ImGui::SetCursorPosY(PahomEngine->i64WindowSize[1]- 60);
-                        PahomEngine->setTextCenter("[A]/(L) - Влево , [D]/(R) - Вправо , [SPACE]/(START) - Пауза");
-                        ImGui::Text("[A]/(L) - Влево , [D]/(R) - Вправо , [SPACE]/(START) - Пауза");
+                        if (PahomEngine->ptrGamepad1->IsConnected()) {
+                            PahomEngine->setTextCenter("[A]/(L) - Влево , [D]/(R) - Вправо , [SPACE]/(START) - Пауза");
+                            ImGui::Text("[A]/(L) - Влево , [D]/(R) - Вправо , [SPACE]/(START) - Пауза");
+                        }
+                        else {
+                            PahomEngine->setTextCenter("[A] - Влево , [D] - Вправо , [SPACE] - Пауза");
+                            ImGui::Text("[A] - Влево , [D] - Вправо , [SPACE] - Пауза");
+                        }
                         if (PahomEngine->bDebugText) {
                             ImGui::PushFont(font10);
-                            ImGui::SetCursorPosY(500);
-
+                            ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 50);
+                            ImGui::SetCursorPosY(20);
+                      
                             ImGui::Text(" pos:%.1f: %.1f\n controls_type_gamepad %s\n controls_type_keyboard %s\n(PahomEngine_OGL_debug_x64 build 0.05)", PahomEngine->fPahomPosX,
                                 PahomEngine->fPahomPosY, (PahomEngine->bControlsIsGamepad) ? "GAMEPAD" : "NONE", (PahomEngine->bControlsIsKeyboard ? "KEYBOARD" : "NONE"));
                             ImGui::Text("bread_pos: %.1f:%.1f chk_cl: %s", PahomEngine->fBreadPosX, PahomEngine->fBreadPosY, (PahomEngine->CheckColiision() ? ":true" : ":false"));
