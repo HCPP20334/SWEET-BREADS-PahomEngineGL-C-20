@@ -21,12 +21,19 @@
 #include <filesystem>
 #include <intrin.h>
 #include <random>
+#define MA_NO_SSE2
+#define MA_NO_SSE4
+#define MA_NO_AVX
 #include <Audio/Sound.hpp>
+#include <dbghelp.h>
 #include "JoyStick.h"
 #pragma comment(lib,"Audio.lib")
+#pragma comment(lib, "dbghelp.lib")
+#include <Psapi.h>
+#include <unordered_map>
+#include <cstring>
 typedef void (APIENTRY* PFNGLBINDBUFFERPROC)(GLenum target, GLuint buffer);
 typedef void (APIENTRY* PFNGLGETBUFFERPARAMETERIVPROC)(GLenum target, GLenum pname, GLint* params);
-
 // typedefs
 int64_t fstack(void* reg,std::string param_name) {
     std::cout << param_name << "=" << reinterpret_cast<int64_t>(reg)<<"stack="<< reg;
@@ -60,7 +67,7 @@ namespace ImGui {
         ImU32 color_bg_off = ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
         ImU32 color_knob = *v ? ImGui::GetColorU32(ImVec4(0.34f, 0.06f, 0.98f, 1.00f)) :
             ImGui::GetColorU32(ImVec4(0.36f, 0.36f, 0.36f, 1.0f));
-        ImU32 glow_color = ImGui::GetColorU32(ImVec4(0.34f, 0.06f, 0.98f, 0.3f)); // Цвет свечения
+        ImU32 glow_color = ImGui::GetColorU32(ImVec4(0.34f, 0.06f, 0.98f, 0.3f)); // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         ImU32 border_color = ImGui::GetColorU32(ImGuiCol_Border);
 
         ImGui::InvisibleButton(label, ImVec2(width, height));
@@ -90,7 +97,7 @@ namespace ImGui {
 
         // Glow effect (only when active)
         if (*v) {
-            // Рисуем несколько слоев для эффекта свечения
+            // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             const int glow_layers = 3;
             for (int i = 0; i < glow_layers; i++) {
                 float alpha = 0.3f * (1.0f - (float)i / glow_layers);
@@ -99,8 +106,8 @@ namespace ImGui {
                     knob_pos,
                     radius,
                     ImGui::GetColorU32(ImVec4(0.34f, 0.06f, 0.98f, alpha)),
-                    0, // сегменты (0 = автоматически)
-                    2.0f // толщина линии
+                    0, // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (0 = пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+                    2.0f // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
                 );
             }
         }
@@ -158,12 +165,13 @@ namespace ImGui {
         return SliderScalar(label, ImGuiDataType_S64, v, &v_min, &v_max, format, flags);
     }
 }
-ImVec4 RGBAtoIV4(int r, int g, int b, int a) {
-    float newr = r / 255;
-    float newg = g / 255;
-    float newb = b / 255;
-    float newa = a;
-    return ImVec4(newr, newg, newb, newa);
+ImVec4 RGBAtoIV4(float r, float g, float b, float a) {
+    return ImVec4{
+        r / 255,
+        g / 255,
+        b / 255,
+        a / 255
+    };
 }
 
 
@@ -177,7 +185,7 @@ public:
     int fIctx = 0;
     int fIcty = 0;
     GLuint gl_buffer;
-    unsigned char CICharBuffer;
+    unsigned char CICharBuffer[256];
     bool CreateImg();
     bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height, unsigned char* imgBuffer);
     ImVec2 ResizeImage(uint64_t fCArrayFloat);
@@ -215,12 +223,8 @@ bool CImage::CreateImage(int64_t w, int64_t h) {
     ImGui::Image((int64_t)(void*)CImage::gl_buffer, ImVec2(w, h));
     return true;
 }
-uint64_t CImage::InitCImage(std::string png_file) {
-    LoadTextureFromFile((png_file).c_str(), &gl_buffer, &fIctx, &fIcty, &CICharBuffer);
-    return 3;
-}
 int64_t CImage::GetImageSize(int width, int height) {
-    // Размер в видеопамяти = ширина * высота * 4 (для RGBA, 4 байта на пиксель)
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ = пїЅпїЅпїЅпїЅпїЅпїЅ * пїЅпїЅпїЅпїЅпїЅпїЅ * 4 (пїЅпїЅпїЅ RGBA, 4 пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     return static_cast<int64_t>(width) * height * 4;
 }
 int64_t CImage::GetFileSize(const std::string& filename) {
@@ -236,13 +240,18 @@ int64_t CImage::GetFileSize(const std::string& filename) {
 bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height, unsigned char* imgBuffer) {
     int image_width = 0;
     int image_height = 0;
+    static int ic = 0;
     unsigned char* image_data = stbi_load(filename, &image_width, &image_height, NULL, 4);
     if (!image_data)
     {
         return false;
     }
     else {
-        *imgBuffer = *image_data;
+        std::cout << "PahomEngine::GL--(debug_gl) buffer: ";
+        for (size_t i = 0; i < std::min<size_t>(16, image_width * image_height * 4); ++i) {
+            std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)image_data[i] << " ";
+        }
+        std::cout << std::dec << image_width << " x " << image_height << std::endl;
         GLuint image_texture;
         glGenTextures(1, &image_texture);
         glBindTexture(GL_TEXTURE_2D, image_texture);
@@ -263,32 +272,175 @@ bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
         *out_height = image_height;
 
         glBindTexture(GL_TEXTURE_2D, 0);
+        
     }
 }//
 struct KurlikAUDIO {
-    std::string audiolist[6] = { "assets/audio/kurlik.wav",
+    std::string audiolist[7] = { "assets/audio/kurlik.wav",
                                  "assets/audio/voda.wav",
                                  "assets/audio/krik.wav",
-                                 "assets/audio/aaa.wav",
+                                 "assets/audio/pidoras.wav",
                                  "assets/audio/mrrobot.wav",
-                                 "assets/audio/a.wav"
+                                 "assets/audio/a.wav",
+                                 "assets/audio/smex.wav"
     };
     void play(int64_t i);
     void play2(int64_t i);
     void play3(int64_t i);
+    void getGain(int64_t idx);
+    void vue();
+    void VuePlay(int64_t idxd, int64_t idx);
+    void getTimeline(int64_t idx);
+    float convertToMinutes();
     int64_t idx = 0;
     float masterVolume = 0.02f;
     void pause();
     Audio::Sound audioDevice,audioDevice2,audioDevice3;
-   
-    
+    int64_t i64CurrentTimeLine = 0;
+    bool isDeviceActive = false;
+    struct gain {
+        float min = 0.0f;
+        float max = 0.0f;
+    };
+    std::unique_ptr<gain> audioGain = std::make_unique<gain>();
+    struct time {
+        float current = 0.0f;
+        float max = 0.0f;
+        std::string formatTime(float seconds) {
+            float minutes = floor(seconds / 60);
+            float secs    = seconds;
+            return (std::to_string(minutes) + ":" + (secs < 10 ? "0" : " ") + std::to_string(secs)).c_str();
+    }
+    };
+    std::unique_ptr<time> audioTime = std::make_unique<time>();
 };
+void KurlikAUDIO::getGain(int64_t idx) {
+    if (isDeviceActive) {
+        switch (idx) {
+        case 0:
+            audioGain->min = audioDevice.getMinGain();
+            audioGain->max = audioDevice.getMaxGain();
+            break;
+        case 1:
+            audioGain->min = audioDevice2.getMinGain();
+            audioGain->max = audioDevice2.getMaxGain();
+            break;
+        case 2:
+            audioGain->min = audioDevice3.getMinGain();
+            audioGain->max = audioDevice3.getMaxGain();
+            break;
+        default:
+            audioGain->min = audioDevice.getMinGain();
+            audioGain->max = audioDevice.getMaxGain();
+            break;
+        }
+  }
+}
+void KurlikAUDIO::vue() {
+    if (ImGui::BeginPopup("vue", ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("AudioEngine");
+        ImGui::Separator();
+
+        // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+        const char* devices[] = { "ch0", "ch1", "ch2" };
+        const char* filelist[] = {"1","2","3","4","5","6"};
+        static int32_t i32idxDevice = 0, i32idxFiles = 0;
+        for (int files = 0; files < 6; files++) {
+            filelist[files] = audiolist[files].c_str();
+        }
+        
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        if (ImGui::Combo("Devices", &i32idxDevice, devices, 3)) {
+            isDeviceActive = false;
+        }
+        ImGui::Combo("Files", &i32idxFiles, filelist, 6);
+        if (ImGui::SliderFloat("Vol", &masterVolume, 0.03f, 1.0f)) {
+            VuePlay(i32idxDevice, i32idxFiles);
+        }
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gain пїЅ timeline
+       /* if (audioDevice != nullptr || audioDevice2 != nullptr || audioDevice3 != nullptr) {
+            if (isDeviceActive) {
+                getGain(i32idxDevice);
+                getTimeline(i32idxDevice);
+           }
+        }*/
+        if (ImGui::Button("Play", ImVec2(100, 30))) {
+            isDeviceActive = true;
+            VuePlay(i32idxDevice, i32idxFiles);
+
+        }
+        // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gain
+       // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ gain
+        float gainValues[2] = { audioGain->min, audioGain->max };
+        float maxGainValue = (audioGain->max > 0.0f) ? audioGain->max + 1.0f : 1.0f;
+        ImGui::Text("Gain %.2f (dB)", (((audioGain->min) > (audioGain->max)) ? (audioGain->min) : (audioGain->max)));
+        ImGui::PlotHistogram("Gain", gainValues, 2, 0, "Gain (dB)", 0.0f, maxGainValue, ImVec2(200, 80));
+
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        float timelineValue[1] = { audioTime->current };
+        float maxTimelineValue = (audioTime->max > 0.0f) ? audioTime->max : 1.0f; // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+       // ImGui::PlotHistogram("Timeline", timelineValue, 1, 0, "Progress (s)", 0.0f, maxTimelineValue, ImVec2(200, 40));
+        ImGui::Text("%.0f:%.0f", audioTime->current / 60 , audioTime->current);
+        ImGui::Text("%.0f:%.0f", audioTime->max / 60, audioTime->max);
+        ImGui::ProgressBar(audioTime->current / maxTimelineValue, ImVec2(220, 30));
+        ImGui::EndPopup();
+    }
+}
+float KurlikAUDIO::convertToMinutes() {
+    return audioTime->current / 60;
+}
+void KurlikAUDIO::getTimeline(int64_t idx) {
+    if (isDeviceActive) {
+        switch (idx) {
+        case 0:
+            audioTime->current = audioDevice.getDurationInSeconds();
+            audioTime->max = audioDevice.getMaxDistance();
+            break;
+        case 1:
+            audioTime->current = audioDevice2.getDurationInSeconds();
+            audioTime->max = audioDevice2.getMaxDistance();
+            break;
+        case 2:
+            audioTime->current = audioDevice3.getDurationInSeconds();
+            audioTime->max = audioDevice3.getMaxDistance();
+            break;
+        default:
+            audioTime->current = audioDevice.getDurationInSeconds();
+            audioTime->max = audioDevice.getMaxDistance();
+            break;
+        }
+    }
+}
+void KurlikAUDIO::VuePlay(int64_t idxd,int64_t idx) {
+    switch (idxd)
+    {
+    case 0:
+        audioDevice.loadSound(audiolist[idx]);
+        audioDevice.play();
+        audioDevice.setVolume(masterVolume);
+        isDeviceActive = audioDevice.isPlaying();
+        break;
+    case 1:
+        audioDevice2.loadSound(audiolist[idx]);
+        audioDevice2.play();
+        audioDevice2.setVolume(masterVolume);
+        isDeviceActive = audioDevice2.isPlaying();
+        break;
+    case 2:
+        audioDevice3.loadSound(audiolist[idx]);
+        audioDevice3.play();
+        audioDevice3.setVolume(masterVolume);
+        isDeviceActive = audioDevice3.isPlaying();
+        break;
+    }
+}
 void KurlikAUDIO::play(int64_t i) {
   //  PlaySoundA(file.c_str(), NULL, 1);
     idx = i;
     audioDevice.loadSound(audiolist[idx]);
     audioDevice.play();
     audioDevice.setVolume(masterVolume);
+    isDeviceActive = audioDevice.isPlaying();
 }
 void KurlikAUDIO::play2(int64_t i) {
     //  PlaySoundA(file.c_str(), NULL, 1);
@@ -296,6 +448,7 @@ void KurlikAUDIO::play2(int64_t i) {
     audioDevice2.loadSound(audiolist[idx]);
     audioDevice2.play();
     audioDevice2.setVolume(masterVolume);
+    isDeviceActive = audioDevice2.isPlaying();
 }
 void KurlikAUDIO::play3(int64_t i) {
     //  PlaySoundA(file.c_str(), NULL, 1);
@@ -303,6 +456,7 @@ void KurlikAUDIO::play3(int64_t i) {
     audioDevice3.loadSound(audiolist[idx]);
     audioDevice3.play();
     audioDevice3.setVolume(masterVolume + 0.1f);
+    isDeviceActive = audioDevice3.isPlaying();
 }
 void KurlikAUDIO::pause() {
     audioDevice.pause();
@@ -312,17 +466,17 @@ struct STRINGSDATA {
         std::cout<<"[PahomEngine::"+std::format("%s]",moduleName) << text << std::endl;
    }
     std::string PAHOM_ENGINE =
-        " ЫЫЫЫЫЫЫЫЫЫ     ЫЫЫЫ    ЫЫЫ    ЫЫЫ   ЫЫЫЫ   ЫЫЫ    ЫЫЫЫЫ   \n"
-        " ЫЫ      ЫЫ   ЫЫ   ЫЫ   ЫЫЫ    ЫЫЫ ЫЫ    ЫЫ ЫЫ ЫЫ ЫЫ  ЫЫ   \n"
-        " ЫЫ     ЫЫ    ЫЫ   ЫЫ   ЫЫЫЫЫЫЫЫЫЫ ЫЫ    ЫЫ ЫЫ  ЫЫЫ   ЫЫ   \n"
-        " ЫЫЫЫЫЫЫ      ЫЫЫЫЫЫЫ   ЫЫЫ    ЫЫЫ ЫЫ    ЫЫ ЫЫ   Ы    ЫЫ   \n"
-        " ЫЫ           ЫЫ   ЫЫ   ЫЫЫ    ЫЫЫ   ЫЫЫЫ   ЫЫ        ЫЫ   \n"
+        " пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ     пїЅпїЅпїЅпїЅ    пїЅпїЅпїЅ    пїЅпїЅпїЅ   пїЅпїЅпїЅпїЅ   пїЅпїЅпїЅ    пїЅпїЅпїЅпїЅпїЅ   \n"
+        " пїЅпїЅ      пїЅпїЅ   пїЅпїЅ   пїЅпїЅ   пїЅпїЅпїЅ    пїЅпїЅпїЅ пїЅпїЅ    пїЅпїЅ пїЅпїЅ пїЅпїЅ пїЅпїЅ  пїЅпїЅ   \n"
+        " пїЅпїЅ     пїЅпїЅ    пїЅпїЅ   пїЅпїЅ   пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ    пїЅпїЅ пїЅпїЅ  пїЅпїЅпїЅ   пїЅпїЅ   \n"
+        " пїЅпїЅпїЅпїЅпїЅпїЅпїЅ      пїЅпїЅпїЅпїЅпїЅпїЅпїЅ   пїЅпїЅпїЅ    пїЅпїЅпїЅ пїЅпїЅ    пїЅпїЅ пїЅпїЅ   пїЅ    пїЅпїЅ   \n"
+        " пїЅпїЅ           пїЅпїЅ   пїЅпїЅ   пїЅпїЅпїЅ    пїЅпїЅпїЅ   пїЅпїЅпїЅпїЅ   пїЅпїЅ        пїЅпїЅ   \n"
         "                                                           \n"
-        " ЫЫЫЫЫЫЫЫ     ЫЫ    ЫЫ  ЫЫЫЫЫЫЫ  ЫЫ  ЫЫ    ЫЫ   ЫЫЫЫЫЫЫ    \n"
-        " ЫЫ           ЫЫ Ы  ЫЫ  ЫЫ       ЫЫ  ЫЫ Ы  ЫЫ   ЫЫ         \n"
-        " ЫЫЫЫЫЫЫЫ     ЫЫ  Ы ЫЫ  ЫЫ ЫЫЫЫ  ЫЫ  ЫЫ  Ы ЫЫ   ЫЫЫЫЫЫЫ    \n"
-        " ЫЫ           ЫЫ   ЫЫЫ  ЫЫ   ЫЫ  ЫЫ  ЫЫ   ЫЫЫ   ЫЫ         \n" 
-        " ЫЫЫЫЫЫЫЫ     ЫЫ    ЫЫ  ЫЫЫЫЫЫЫ  ЫЫ  ЫЫ    ЫЫ   ЫЫЫЫЫЫЫ    \n"
+        " пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ     пїЅпїЅ    пїЅпїЅ  пїЅпїЅпїЅпїЅпїЅпїЅпїЅ  пїЅпїЅ  пїЅпїЅ    пїЅпїЅ   пїЅпїЅпїЅпїЅпїЅпїЅпїЅ    \n"
+        " пїЅпїЅ           пїЅпїЅ пїЅ  пїЅпїЅ  пїЅпїЅ       пїЅпїЅ  пїЅпїЅ пїЅ  пїЅпїЅ   пїЅпїЅ         \n"
+        " пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ     пїЅпїЅ  пїЅ пїЅпїЅ  пїЅпїЅ пїЅпїЅпїЅпїЅ  пїЅпїЅ  пїЅпїЅ  пїЅ пїЅпїЅ   пїЅпїЅпїЅпїЅпїЅпїЅпїЅ    \n"
+        " пїЅпїЅ           пїЅпїЅ   пїЅпїЅпїЅ  пїЅпїЅ   пїЅпїЅ  пїЅпїЅ  пїЅпїЅ   пїЅпїЅпїЅ   пїЅпїЅ         \n" 
+        " пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ     пїЅпїЅ    пїЅпїЅ  пїЅпїЅпїЅпїЅпїЅпїЅпїЅ  пїЅпїЅ  пїЅпїЅ    пїЅпїЅ   пїЅпїЅпїЅпїЅпїЅпїЅпїЅ    \n"
         "                Engine b0.24  .                            \n";
 };
 //
@@ -334,16 +488,23 @@ struct STRINGSDATA {
 #define PAHOM_IMAGE  3
 #define PAHOM2_IMAGE 4
 #define PANEl_IMAGE  5
+//
+// 
+
+
+#define engine_bulid std::wstring(L"0.6.98a");
 
 //
 struct ASSETSDATA {
-    std::string asset[7] = { "assets/logo.png",   //0
+    std::string asset[9] = { "assets/logo.png",   //0
                              "assets/back.jpg",   //1
                              "assets/bread.png",  //2
                              "assets/pahom.png",  //3
                              "assets/pahom2.png",  //4
                              "assets/panel.png",
-                             "assets/777.png"
+                             "assets/777.png",
+                             "assets/vilka.png",
+                             "assets/kefir.png"
     }; //5
 
 
@@ -395,13 +556,13 @@ struct MEMORYDATA {
         ::GlobalMemoryStatus(&MemoryPtr);
         switch (idx_data) {
         case 0:
-            *mem = (MemoryPtr.dwTotalPhys - MemoryPtr.dwAvailPhys) / 1024 / 1024 / 1024; // кол использованная память
+            *mem = (MemoryPtr.dwTotalPhys - MemoryPtr.dwAvailPhys) / 1024 / 1024 / 1024; // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
             break;
         case 1:
-            *mem = MemoryPtr.dwTotalPhys / 1024 / 1024 / 1024; // кол всего памяти
+            *mem = MemoryPtr.dwTotalPhys / 1024 / 1024 / 1024; // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
             break;
         case 2:
-            *mem = MemoryPtr.dwAvailPhys / 1024 / 1024 / 1024; // кол свободная памяти
+            *mem = MemoryPtr.dwAvailPhys / 1024 / 1024 / 1024; // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
             break;
         }
     }
@@ -420,6 +581,7 @@ auto ptrMemory = std::make_unique<MEMORYDATA>();
 struct GameEvent {
     std::string TextBufferStr;
     ImVec4 col;
+    int64_t i64TimerEvent = 0;
     bool isTextHidden = false;
     int64_t i64WindowSize[2] = { 800 , 600 };
     void TextBuffer() {
@@ -437,7 +599,7 @@ struct GameEvent {
         
     }
     void Text(ImVec4 col, std::string text) {
-        TextBufferStr += "\n" + text;
+        TextBufferStr = text;
         setColorText(col);
     }
     void setColorText(ImVec4 col) {
@@ -446,21 +608,248 @@ struct GameEvent {
     void clearEvent() {
         TextBufferStr.clear();
     }
+    float clr(float a) {
+        return a / 255.0f;
+    }
+    void TimerToClear() {
+        static int64_t i64t = 0;
+        i64t++;
+        if (i64t > 100) {
+            clearEvent();
+            isTextHidden = true;
+            i64t = 0;
+        }
+    }
+    float progress = 0.0f; // РџСЂРѕРіСЂРµСЃСЃ Р°РЅРёРјР°С†РёРё
+    bool drawReset = false;
+    int64_t linesToDraw = 0;
+    void mt_fill(float x_max, float y_max) {
+        float lineColor[4] = { clr(0), clr(0), clr(5), clr(255) };
+        float lineThickness = 2.0f;
+        int64_t lineCount = static_cast<int64_t>(y_max / lineThickness);
+
+        // РђРЅРёРјР°С†РёСЏ
+        progress += ImGui::GetIO().DeltaTime * IM_PI;
+        if (progress > 1.0f) {
+            progress = (drawReset ? 1.0f : 0.0f); 
+        }
+
+        linesToDraw = static_cast<int64_t>(lineCount * progress);
+
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+        for (int64_t ln = 0; ln < linesToDraw; ln++) {
+            float y = ln * lineThickness;
+            draw_list->AddLine(
+                ImVec2(0.0f, y),
+                ImVec2(x_max, y),
+                ImGui::GetColorU32(ImVec4(lineColor[0], lineColor[1], lineColor[2], lineColor[3])),
+                lineThickness
+            );
+        }
+        drawReset = true;
+    }
+    void mt_clear() {
+        progress = 0;
+        drawReset = false;
+        linesToDraw = 0;
+    }
   
 };
+std::string logoPahom =
+" %%%%%%  %%%%%  %%%  %%%   %%%   %%%    %%%\n"
+" %%   %  %% %%  %%%  %%% %%   %% %% %  % %%\n"
+" %%%%%   %%%%%  %%%%%%%% %%   %% %%  %%  %%\n"
+" %%      %$ %%  %%%  %%% %%   %% %%  %%  %%\n"
+" %%      %   %  %%%  %%%   %%%   %%      %%\n";
 struct EXCEPTIONS {
     bool ErrorTextures = false;
     std::string sLastError;
     void* pLastStack = nullptr;
-    void Write(std::string t, void* pErrorSegment) {
-        ErrorTextures = true;
-        sLastError += t;
-        pLastStack = pErrorSegment;
+    int64_t i64MemoryUsageProcess = 0;
+    void log(std::string t) {
+        std::cout << "Exception Error: " << t << std::endl;
     }
+
+    void GetProcessMemoryUsage() {
+        PROCESS_MEMORY_COUNTERS pmc;
+        pmc.cb = sizeof(pmc);
+        GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
+        i64MemoryUsageProcess=   pmc.WorkingSetSize;
+    }
+    void Write(const std::string& t, void* pErrorSegment) {
+        ErrorTextures = true;
+        sLastError += t + "\n";
+        pLastStack = pErrorSegment;
+        log("EXCEPTIONS::Write: " + t + ", StackPtr: " + std::to_string(reinterpret_cast<uintptr_t>(pErrorSegment)));
+    }
+
+    static std::wstring GetStackTrace(PEXCEPTION_POINTERS pExInfo) {
+        std::wstringstream ss;
+        HANDLE process = GetCurrentProcess();
+        HANDLE thread = GetCurrentThread();
+
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        SymInitialize(process, NULL, TRUE); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+
+        STACKFRAME64 frame = { 0 };
+        frame.AddrPC.Offset = pExInfo->ContextRecord->Rip;
+        frame.AddrPC.Mode = AddrModeFlat;
+        frame.AddrFrame.Offset = pExInfo->ContextRecord->Rbp;
+        frame.AddrFrame.Mode = AddrModeFlat;
+        frame.AddrStack.Offset = pExInfo->ContextRecord->Rsp;
+        frame.AddrStack.Mode = AddrModeFlat;
+
+        while (StackWalk64(
+            IMAGE_FILE_MACHINE_AMD64,
+            process,
+            thread,
+            &frame,
+            pExInfo->ContextRecord,
+            NULL,
+            SymFunctionTableAccess64,
+            SymGetModuleBase64,
+            NULL)) {
+            DWORD64 address = frame.AddrPC.Offset;
+            if (address == 0) break; // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
+
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
+            ss << L"[0x" << std::hex << std::setw(16) << std::setfill(L'0') << address << L"] ";
+
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+            char symbolBuffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME] = { 0 };
+            SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbolBuffer;
+            symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+            symbol->MaxNameLen = MAX_SYM_NAME;
+            DWORD64 displacement = 0;
+
+            if (SymFromAddr(process, address, &displacement, symbol)) {
+                // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ char* пїЅ wstring
+                std::string funcName(symbol->Name);
+                std::wstring wFuncName(funcName.begin(), funcName.end()); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ MultiByteToWideChar пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+                ss << L"Function: " << wFuncName << L" + 0x" << std::hex << displacement;
+            }
+            else {
+                ss << L"Unknown function";
+            }
+
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
+            IMAGEHLP_LINE64 line = { 0 };
+            line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+            DWORD lineDisplacement = 0;
+            if (SymGetLineFromAddr64(process, address, &lineDisplacement, &line)) {
+                // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ char* пїЅ wstring
+                std::string fileName(line.FileName);
+                std::wstring wFileName(fileName.begin(), fileName.end());
+                ss << L" at " << wFileName << L":" << std::dec << line.LineNumber;
+            }
+
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
+            IMAGEHLP_MODULE64 module = { 0 };
+            module.SizeOfStruct = sizeof(IMAGEHLP_MODULE64);
+            if (SymGetModuleInfo64(process, address, &module)) {
+                // ModuleName пїЅ пїЅпїЅпїЅ TCHAR*, пїЅ Unicode-пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ wchar_t*
+                ss << L" in module " << module.ModuleName;
+            }
+
+            ss << L"\n";
+        }
+
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        SymCleanup(process);
+        return ss.str();
+    }
+
+    static LONG WINAPI CrashHandler(PEXCEPTION_POINTERS pExInfo) {
+        std::wstring errorMsg;
+        std::wstring errorCode;
+        std::string errorMsgA;
+        std::string errorCodeA;
+        switch (pExInfo->ExceptionRecord->ExceptionCode) {
+        case EXCEPTION_ILLEGAL_INSTRUCTION: // 0xC000001D
+            errorCode = L"Iligal Instruction (0xC000001D)";
+            errorCodeA = "Iligal Instruction (0xC0000005)";
+            break;
+        case EXCEPTION_ACCESS_VIOLATION: // 0xC0000005
+            errorCode = L"Access Violation (0xC0000005)";
+            errorCodeA = "Access Violation (0xC0000005)";
+            break;
+        case EXCEPTION_STACK_OVERFLOW: // 0xC00000FD
+            errorCode = L"Stack Overflow (0xC00000FD)";
+            errorCodeA = "Stack Overflow (0xC00000FD)";
+            break;
+        default:
+            errorCode = L"Undefined Exception (0x" + std::wstring(std::to_string(pExInfo->ExceptionRecord->ExceptionCode).begin(), std::to_string(pExInfo->ExceptionRecord->ExceptionCode).end()) + L")";
+            errorCodeA = "Undefined Exception (0x" + std::to_string(pExInfo->ExceptionRecord->ExceptionCode) + ")";
+            break;
+        }
+        std::wstring sEngineInfoW = L"PahomEngine " + engine_bulid;
+        std::wstring stackTraceW = GetStackTrace(pExInfo);
+        std::wstring wsapp = sEngineInfoW;
+        std::wstring titleProject = (wsapp+L"::Exception");
+        std::ofstream logFile("crash_log.txt", std::ios::app);
+        logFile << "PahomEngine crashed!" << std::endl;
+        logFile << "========================" << std::endl;
+        logFile << "Crash at:     " << __DATE__ << " " << __TIME__ << "\n";
+        logFile << "Exception:    " << errorCodeA << "\n";
+        logFile << "Stack Trace:\n" << std::string(stackTraceW.begin(), stackTraceW.end()).c_str() << "\n";
+        logFile << "------------------------\n";
+        logFile.close();
+        std::wstring wlogo(logoPahom.begin(), logoPahom.end());
+        std::wstring msg = sEngineInfoW + L" crashed\n=======================\nException: " + std::wstring(errorCode.begin(), errorCode.end()) + L"\n------------------- STACK TRACE ---------------\n" + std::wstring(stackTraceW.begin(), stackTraceW.end()) +
+            L"\nSee crash_log.txt for details.\nPlease send crash_log.txt to @hcppstudio.";
+        msg += L"\n" +  wlogo;
+        MessageBox(NULL, msg.c_str(), titleProject.c_str(), MB_OK | MB_ICONERROR);
+
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+
+    void BugReport() {
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
+        SymInitialize(GetCurrentProcess(), NULL, TRUE);
+        SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME);
+        SetUnhandledExceptionFilter(CrashHandler);
+    }
+
+    void Cleanup() {
+        SymCleanup(GetCurrentProcess());
+    }
+};
+struct Diffinity {
+    int64_t i64diff[3] = {
+        16,24,8
+    };
+    std::vector<std::string >ccDiff = {
+        "Р›РµРіРєР°СЏ",
+        "РЎСЂРµРґРЅСЏСЏ",
+        "РџРѕРµС…Р°РІС€РёР№"
+    };
+    int64_t i64id = 0;
+    bool bRandScoreDiff = false;
+    std::string diffSelected = "";
+    struct { int64_t i64buffer; int64_t i64buffer1; } diffArray[3] = {
+        {4,6},
+        {6,10},
+        {12,20},
+    };
+    void setDiff(int64_t i64idx) {
+        if (i64idx >= 0 && i64idx < 3) {
+            diffSelected = ccDiff[i64idx];
+        }
+        else {
+            diffSelected = ccDiff[1];
+        }
+    }
+   
 };
 struct PahomEngineStruct {
     //
-    std::string sBuild = "0.4.1510";
+    std::string sBuild = "0.6.98a";
+    std::string sBuildGame = "0.6.1d";
+    //
+    std::wstring sWBuild = L"0.6.98a";
+    std::wstring sWBuildGame = L"0.6.1d";
     //
     bool CVsync = true;
     uint64_t fCPoint = 0;
@@ -482,7 +871,14 @@ struct PahomEngineStruct {
     GameEvent Event;
     MEMORYDATA Mem;
     std::unique_ptr<EXCEPTIONS> Exceptions = std::make_unique<EXCEPTIONS>();
+    std::unique_ptr<Diffinity> pDiff = std::make_unique<Diffinity>();
     // other value
+    ///
+
+    float fDeltaTime = 0;
+    float fFrameRate = 0;
+
+    //
     bool bSettings = false;
     ImVec4 fillColorRGBA;//RGBA(133, 133, 133, 255)
     int64_t i64WindowSize[2] = { 800 , 600 };
@@ -502,7 +898,7 @@ struct PahomEngineStruct {
     bool bDebug = true;
     bool bFullscreen = false;
     bool bGameOver = false;
-    int64_t i64CPUDelay = 10;
+    int64_t i64CPUDelay = 2;
     // main flags
     bool bStartGame = false;
     float fStepMove = 6.0f;
@@ -516,6 +912,7 @@ struct PahomEngineStruct {
     bool bIsRevesed = false;
     bool bDebugText = false;
     bool bBoost777 = false;
+    bool bKefir = false;
     int64_t i64RandBoost = 0;
     int64_t i64ValuesRands[4] = { 50 , 100, 256, 777 };
     bool GetGamepadKey(int64_t iKey);
@@ -526,6 +923,10 @@ struct PahomEngineStruct {
     void Tbuffer();
     void logo();
     void progress_bar(float fragtion);
+    bool getPressedKey(int8_t key, bool isTurned = false) {
+        return (isTurned ? GetKeyState(key) & 0x8000 : GetKeyState(key) > 0);
+    }
+    void setTextCenterXY(const char* text);
 };
 void  PahomEngineStruct::log(std::string text) {
     std::cout << " [PahomEngine::log] " << text << std::endl;
@@ -540,16 +941,16 @@ bool  PahomEngineStruct::GetGamepadKey(int64_t iKey) {
    return ptrGamepad1->GetState().Gamepad.wButtons == iKey ? true : false;
 }
 int64_t PahomEngineStruct::rand64(int64_t in_v) {
-    std::random_device rd; // инициализация движка
-    std::mt19937 gen(rd()); // инициализация генератора
-    std::uniform_int_distribution<int64_t> dist(2, in_v);//присвоение типа для генерации
-    return dist(gen); //генерация чисел
+    std::random_device rd; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
+    std::mt19937 gen(rd()); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    std::uniform_int_distribution<int64_t> dist(2, in_v);//пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    return dist(gen); //пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
 }
 float PahomEngineStruct::randfloat(float in_v) {
-    std::random_device rd; // инициализация движка
-    std::mt19937 gen(rd()); // инициализация генератора
-    std::uniform_real_distribution<float> dist(2, in_v);//присвоение типа для генерации
-    return dist(gen); //генерация чисел
+    std::random_device rd; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
+    std::mt19937 gen(rd()); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    std::uniform_real_distribution<float> dist(2, in_v);//пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    return dist(gen); //пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
 }
 void PahomEngineStruct::reloadBreadPos() {
     fBreadPosX = randfloat(fMaxPahomPosX);
@@ -581,6 +982,13 @@ void PahomEngineStruct::setTextCenter(const char* text) {
     float fTextSize = ImGui::CalcTextSize(text).x;
     float fTextCenterPosition = (i64WindowSize[0] - fTextSize) / 2;
     ImGui::SetCursorPosX(fTextCenterPosition);
+}
+void PahomEngineStruct::setTextCenterXY(const char* text) {
+    ImVec2 fTextSize = ImGui::CalcTextSize(text);
+    ImGui::SetCursorPos(ImVec2{
+        (i64WindowSize[0] - fTextSize.x) / 2,
+        (i64WindowSize[1] - fTextSize.y) / 2
+        });
 }
 bool PahomEngineStruct::CheckColiision() {
     return (
@@ -614,20 +1022,37 @@ ImVec4  PahomEngineStruct::RGBA(float r, float g, float b, float a) {
     return outRGBA;
 }
 void PahomEngineStruct::logo() {
+    HANDLE hc = GetStdHandle(STD_OUTPUT_HANDLE);
+    static int64_t i64ColorCh = 0;
+    std::vector <std::string> array;
     std::string PAHOM_ENGINE =
-     " ______   ______     __  __     ______     __    __             \n"
-     "/\\  == \\ /\\  __ \\   /\\ \\_\\ \\   /\\  __ \\   /\\ \"-./  \\            \n"
-     "\\ \\  _-/ \\ \\  __ \\  \\ \\  __ \\  \\ \\ \\/\\ \\  \\ \\ \\-./\\ \\           \n"
-     " \\ \\_\\    \\ \\_\\ \\_\\  \\ \\_\\ \\_\\  \\ \\_____\\  \\ \\_\\ \\ \\_\\          \n"
-     "  \\/_/     \\/_/\\/_/   \\/_/\\/_/   \\/_____/   \\/_/  \\/_/          \n"
-     "                                                                \n"
-     " ______     __   __     ______     __     __   __     ______    \n"
-     "/\\  ___\\   /\\ \"-.\\ \\   /\\  ___\\   /\\ \\   /\\ \"-.\\ \\   /\\  ___\\   \n"
-     "\\ \\  __\\   \\ \\ \\-.  \\  \\ \\ \\__ \\  \\ \\ \\  \\ \\ \\-.  \\  \\ \\  __\\   \n"
-     " \\ \\_____\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\  \\ \\_\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\ \n"
-     "  \\/_____/   \\/_/ \\/_/   \\/_____/   \\/_/   \\/_/ \\/_/   \\/_____/ \n"
-     "                                                                \n";
-    std::cout << PAHOM_ENGINE << std::endl;
+        " ______   ______     __  __     ______     __    __             \n"
+        "/\\  == \\ /\\  __ \\   /\\ \\_\\ \\   /\\  __ \\   /\\ \"-./  \\            \n"
+        "\\ \\  _-/ \\ \\  __ \\  \\ \\  __ \\  \\ \\ \\/\\ \\  \\ \\ \\-./\\ \\           \n"
+        " \\ \\_\\    \\ \\_\\ \\_\\  \\ \\_\\ \\_\\  \\ \\_____\\  \\ \\_\\ \\ \\_\\          \n"
+        "  \\/_/     \\/_/\\/_/   \\/_/\\/_/   \\/_____/   \\/_/  \\/_/          \n"
+        "                                                                \n"
+        " ______     __   __     ______     __     __   __     ______    \n"
+        "/\\  ___\\   /\\ \"-.\\ \\   /\\  ___\\   /\\ \\   /\\ \"-.\\ \\   /\\  ___\\   \n"
+        "\\ \\  __\\   \\ \\ \\-.  \\  \\ \\ \\__ \\  \\ \\ \\  \\ \\ \\-.  \\  \\ \\  __\\   \n"
+        " \\ \\_____\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\  \\ \\_\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\ \n"
+        "  \\/_____/   \\/_/ \\/_/   \\/_____/   \\/_/   \\/_/ \\/_/   \\/_____/ \n"
+        "                                                                \n";
+    SetConsoleOutputCP(CP_UTF8);
+    for (int64_t c = 0; c < PAHOM_ENGINE.size(); c++) {
+        array.push_back(std::string(1, PAHOM_ENGINE[c]));
+        if (array[c].empty() || array[c] == " ") {
+            SetConsoleTextAttribute(hc, 15);
+        }
+        else {
+            SetConsoleTextAttribute(hc, (c > (PAHOM_ENGINE.size() / 2) ? (rand() % 8 ) : 15));
+            i64ColorCh++;
+        }
+        std::cout << PAHOM_ENGINE[c];
+    }
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    SetConsoleTextAttribute(hc, 7); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ)
+    std::cout << "Colored:" << i64ColorCh << " LogoSize: " << PAHOM_ENGINE.size() << std::endl;
 }
 void PahomEngineStruct::progress_bar(float fragtion) {
     int64_t idx = static_cast<float>(fragtion) * 10;
@@ -636,16 +1061,16 @@ void PahomEngineStruct::progress_bar(float fragtion) {
     SetConsoleCursorPosition(hcon, nullcd);
     std::string str_array[] = {
         "[----------]",//0
-        "[Ы---------]",//1
-        "[ЫЫ--------]",//2
-        "[ЫЫЫ-------]",//3
-        "[ЫЫЫЫ------]",//4
-        "[ЫЫЫЫЫ-----]",//5
-        "[ЫЫЫЫЫЫ----]",//6
-        "[ЫЫЫЫЫЫЫ---]",//7
-        "[ЫЫЫЫЫЫЫЫ--]",//8
-        "[ЫЫЫЫЫЫЫЫЫ-]",//9
-        "[ЫЫЫЫЫЫЫЫЫЫ]",//10
+        "[пїЅ---------]",//1
+        "[пїЅпїЅ--------]",//2
+        "[пїЅпїЅпїЅ-------]",//3
+        "[пїЅпїЅпїЅпїЅ------]",//4
+        "[пїЅпїЅпїЅпїЅпїЅ-----]",//5
+        "[пїЅпїЅпїЅпїЅпїЅпїЅ----]",//6
+        "[пїЅпїЅпїЅпїЅпїЅпїЅпїЅ---]",//7
+        "[пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ--]",//8
+        "[пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ-]",//9
+        "[пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ]",//10
        
     };
     std::cout << str_array[idx] << std::endl;
@@ -655,16 +1080,16 @@ bool PahomEngineStruct::StyleLoad() {
     ImVec4* colors = ImGui::GetStyle().Colors;
     colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
     colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-    colors[ImGuiCol_WindowBg] = RGBA(7,7,9,255);
+    colors[ImGuiCol_WindowBg] = RGBA(7, 7, 9, 255);
     colors[ImGuiCol_ChildBg] = ImVec4(0.04f, 0.04f, 0.04f, 0.94f);
     colors[ImGuiCol_PopupBg] = RGBA(5, 5, 7, 255);
-    colors[ImGuiCol_Border] = ImVec4(0.43f, 0.43f, 0.50f, 1.0f);
+    colors[ImGuiCol_Border] = RGBA(35, 35, 55, 255);
     colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.04f, 0.04f, 0.04f, 0.94f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.48f, 0.26f, 0.98f, 0.40f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.37f, 0.00f, 1.00f, 1.00f);
+    colors[ImGuiCol_FrameBg] = RGBA(5, 5, 5, 255);
+    colors[ImGuiCol_FrameBgHovered] = RGBA(5, 5, 5, 255);
+    colors[ImGuiCol_FrameBgActive] = RGBA(5, 5, 5, 255);
     colors[ImGuiCol_TitleBg] = ImVec4(0.353f, 0.157f, 1.000f, 1.000f);
-    colors[ImGuiCol_TitleBgActive] = RGBAtoIV4(135, 165, 255, 155);
+    colors[ImGuiCol_TitleBgActive] = RGBA(135, 165, 255, 155);
     colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
     colors[ImGuiCol_MenuBarBg] = ImVec4(0.11f, 0.11f, 0.11f, 1.00f);
     colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.53f);
@@ -672,17 +1097,17 @@ bool PahomEngineStruct::StyleLoad() {
     colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
     colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
     colors[ImGuiCol_CheckMark] = ImVec4(0.50f, 0.60f, 1.0f, 1.0f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.41f, 0.00f, 1.00f, 0.40f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.48f, 0.26f, 0.98f, 0.52f);
+    colors[ImGuiCol_SliderGrab] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_SliderGrabActive] = RGBA(35, 35, 55, 255);
     colors[ImGuiCol_Button] = RGBA(7, 7, 9, 255);
     colors[ImGuiCol_ButtonHovered] = RGBA(35, 35, 55, 255);
     colors[ImGuiCol_ButtonActive] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
     colors[ImGuiCol_Header] = RGBA(5, 5, 5, 255);
     colors[ImGuiCol_HeaderHovered] = ImVec4(0.15f, 0.15f, 0.15f, 0.80f);
     colors[ImGuiCol_HeaderActive] = ImVec4(1.00f, 1.00f, 1.00f, 0.04f);
-    colors[ImGuiCol_Separator] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.10f, 0.40f, 0.75f, 0.78f);
-    colors[ImGuiCol_SeparatorActive] = ImVec4(0.10f, 0.40f, 0.75f, 1.00f);
+    colors[ImGuiCol_Separator] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_SeparatorHovered] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_SeparatorActive] = RGBA(35, 35, 55, 255);
     colors[ImGuiCol_ResizeGrip] = ImVec4(1.00f, 1.00f, 1.00f, 0.04f);
     colors[ImGuiCol_ResizeGripHovered] = ImVec4(1.00f, 1.00f, 1.00f, 0.13f);
     colors[ImGuiCol_ResizeGripActive] = ImVec4(0.38f, 0.38f, 0.38f, 1.00f);
@@ -710,7 +1135,7 @@ bool PahomEngineStruct::StyleLoad() {
     colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
     style.FrameBorderSize = 1;
-    return 0;
+    return true;
 }
 auto PahomEngine = std::make_unique<PahomEngineStruct>();
 
