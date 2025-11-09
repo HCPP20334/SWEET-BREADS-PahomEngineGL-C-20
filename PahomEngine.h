@@ -456,7 +456,7 @@ void KurlikAUDIO::play(int64_t i) {
     audioDevice.play();
     audioDevice.setVolume(masterVolume);
     isDeviceActive = audioDevice.isPlaying();
-    std::cout << " [PahomEngine->KurlikAudio] audio device 0 :-> " << audiolist[idx] << " | volume_offset_:"<< masterVolume * 100 << "%" << std::endl;
+   // std::cout << " [PahomEngine->KurlikAudio] audio device 0 :-> " << audiolist[idx] << " | volume_offset_:"<< masterVolume * 100 << "%" << std::endl;
 }
 void KurlikAUDIO::play2(int64_t i) {
     //  PlaySoundA(file.c_str(), NULL, 1);
@@ -465,7 +465,7 @@ void KurlikAUDIO::play2(int64_t i) {
     audioDevice2.play();
     audioDevice2.setVolume(masterVolume);
     isDeviceActive = audioDevice2.isPlaying();
-    std::cout << " [PahomEngine->KurlikAudio] audio device 1 :-> " << audiolist[idx] << " | volume_offset_:" << masterVolume * 100 << "%" << std::endl;
+   // std::cout << " [PahomEngine->KurlikAudio] audio device 1 :-> " << audiolist[idx] << " | volume_offset_:" << masterVolume * 100 << "%" << std::endl;
 }
 void KurlikAUDIO::play3(int64_t i) {
     //  PlaySoundA(file.c_str(), NULL, 1);
@@ -474,7 +474,7 @@ void KurlikAUDIO::play3(int64_t i) {
     audioDevice3.play();
     audioDevice3.setVolume(masterVolume + 0.1f);
     isDeviceActive = audioDevice3.isPlaying();
-    std::cout << " [PahomEngine->KurlikAudio] audio device 2 :-> " << audiolist[idx] << " | volume_offset_:" << masterVolume * 100 << "%" << std::endl;
+    //std::cout << " [PahomEngine->KurlikAudio] audio device 2 :-> " << audiolist[idx] << " | volume_offset_:" << masterVolume * 100 << "%" << std::endl;
 }
 void KurlikAUDIO::setReplay(bool isReplay) {
     if (isDeviceActive) {
@@ -560,7 +560,7 @@ struct KEYMAPDATA {
     int8_t u8ButtonLeft = 'L';
     int8_t u8ButtonRight = 'R';
     int64_t kbDelay = 0;
-    int64_t vMaxDelay = 1;
+    int64_t vMaxDelay = 3;
     int64_t i64BACKGamepad = XINPUT_GAMEPAD_DPAD_LEFT;
     int64_t i64FORWARDGamepad = XINPUT_GAMEPAD_DPAD_RIGHT;
     int64_t i64UPGamepad = XINPUT_GAMEPAD_DPAD_UP;
@@ -962,14 +962,36 @@ struct cpu_bench64 {
     }
 };
 
-
+struct GameUI {
+    int32_t i32idButton = 0;
+    void clear() {
+        i32idButton = 0;
+    }
+    void SetCountsButton(int32_t c) {
+        i32idButton = c;
+    }
+    bool TextButton(ImVec4 colHovered, ImVec4 colDefault, const std::string& text, bool isCenterX = false, bool active = false) {
+        static bool isPresedButton = false, isHoveredButton = false;
+        ImGui::SetCursorPosX(isCenterX ? ((ImGui::GetWindowWidth() - ImGui::CalcTextSize(text.c_str()).x) / 2) : 0);
+        ImGui::TextColored((ImGui::IsItemHovered() || active) ? colHovered : colDefault, text.c_str());
+        isHoveredButton = ImGui::IsItemHovered();
+        isPresedButton = ImGui::IsItemClicked();
+        return isPresedButton;
+    }
+    void SetFont(ImFont* font) {
+        ImGui::PushFont(font);
+    }
+    void EndFont() {
+        ImGui::PopFont();
+    }
+};
 struct PahomEngineStruct {
     //
-    std::string sBuild = "0.7";
-    std::string sBuildGame = "0.7";
+    std::string sBuild = "0.7.1";
+    std::string sBuildGame = "0.7.1";
     //
-    std::wstring sWBuild = L"0.7";
-    std::wstring sWBuildGame = L"0.7";
+    std::wstring sWBuild = L"0.7.1";
+    std::wstring sWBuildGame = L"0.7.1";
     //
     bool CVsync = true;
     uint64_t fCPoint = 0;
@@ -977,6 +999,7 @@ struct PahomEngineStruct {
     std::unique_ptr<CImage> img = std::make_unique<CImage>();
     std::unique_ptr<JoyStickAPI> ptrGamepad1 = std::make_unique<JoyStickAPI>(1);
     std::unique_ptr<cpu_bench64> Bench64ptr = std::make_unique<cpu_bench64>();
+    std::unique_ptr<GameUI> UI = std::make_unique<GameUI>();
     struct mathValues {
         template <typename Tm>
         Tm minv(Tm a, Tm b) {
@@ -986,6 +1009,11 @@ struct PahomEngineStruct {
         Tm maxv(Tm a, Tm b) {
             return std::max<Tm>(a, b);
         }
+        template <typename Tm>
+        Tm abs(Tm x) {
+            std::abs(x);
+        }
+        
         template <typename Tm>
         Tm random(Tm value_max) {
             std::random_device rd; 
@@ -1000,6 +1028,18 @@ struct PahomEngineStruct {
             }
         }
     };
+    struct castValues {
+        bool bUsedStaticCast = false;
+        template <typename Tm>
+        Tm cast_all(Tm type) {
+            return bUsedStaticCast ? static_cast<Tm>(type) : (Tm)(type);
+        }
+        template <typename Tm>
+        Tm cast_to_string(Tm type) {
+            return std::format("{}", type);
+        }
+    };
+    std::unique_ptr<castValues> cast = std::make_unique<castValues>();
     std::unique_ptr<mathValues> math = std::make_unique<mathValues>();
     bool StyleLoad();
     ImVec4 RGBA(float r, float g, float b, float a);
@@ -1026,6 +1066,7 @@ struct PahomEngineStruct {
 
 
     //
+    bool bRenderIsEdited = false;
     bool bSettings = false;
     ImVec4 fillColorRGBA;//RGBA(133, 133, 133, 255)
     int64_t i64WindowSize[2] = { 800 , 600 };
@@ -1081,9 +1122,12 @@ struct PahomEngineStruct {
     }
     int32_t SetSizeHWND(HWND hwnd, int32_t x, int32_t y);
     void stdoutColored(std::string out, int16_t i16colorText);
+    bool bLogEnabled = false;
 };
 void  PahomEngineStruct::log(std::string text) {
-    std::cout << " [PahomEngine::" << text << std::endl;
+    if (bLogEnabled) {
+        std::cout << " [PahomEngine::" << text << std::endl;
+    }
 }
 void  PahomEngineStruct::Text(ImVec4 col, std::string text) {
     PahomEngineStruct::Event.Text(col,text);
