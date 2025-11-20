@@ -35,12 +35,52 @@
 #include <thread>
 #include <array>
 #include <stdexcept>
-#define _CRT_INTERNAL_NONSTDC_NAMES 1  // <--- ВОТ ЭТО ВАЖНО!
+#define _CRT_INTERNAL_NONSTDC_NAMES 1
 #include <stdio.h>
 //
 
-
-
+typedef long double double64_t;
+constexpr size_t double64_t_size = sizeof(double64_t);
+struct d64Vec2 {
+    double64_t x, y;
+    constexpr d64Vec2() : x(0.0L), y(0.0L) {}
+    constexpr d64Vec2(double64_t _x,double64_t _y) : x(_x), y(_y) {}
+    constexpr size_t size() const {
+        return sizeof(this->x) + sizeof(this->y);
+    }
+    static constexpr d64Vec2 P_(d64Vec2 a, d64Vec2 b) { 
+        return { a.x + b.x, a.y + b.y };
+    }
+    static constexpr d64Vec2 M_(d64Vec2 a, d64Vec2 b) { 
+        return { a.x - b.x, a.y - b.y }; 
+    }
+    static  d64Vec2 D_(d64Vec2 a, d64Vec2 b){
+        if (!b.x || !b.y) {
+            printf("divide by zero!! d64Vec2 b.x || b.y=0\n");
+            return { 0,0 };
+        }
+        else {
+            return { a.x / b.x,a.y / b.y };
+        }
+    }
+    static  double64_t DA_(double64_t a, double64_t b) {
+        if (!b) {
+            printf("divide by zero!! b=0\n");
+            return 0;
+        }
+        else {
+            return {a / b};
+        }
+    }
+    static constexpr d64Vec2 S_(double64_t s, d64Vec2 v) {
+        return { s * v.x, s * v.y };
+    }
+    std::string to_string(int st) const {
+        return std::format("{}", ((!st) ? this->x : this->y));
+    }
+};
+auto d64 = std::make_unique<d64Vec2>();
+//
 typedef void (APIENTRY* PFNGLBINDBUFFERPROC)(GLenum target, GLuint buffer);
 typedef void (APIENTRY* PFNGLGETBUFFERPARAMETERIVPROC)(GLenum target, GLenum pname, GLint* params);
 // typedefs
@@ -174,6 +214,69 @@ namespace ImGui {
         return SliderScalar(label, ImGuiDataType_S64, v, &v_min, &v_max, format, flags);
     }
 
+
+    bool RotatedButton(const char* label, ImVec2 center, ImVec2 size, float angle_deg,
+        ImU32 col_button, ImU32 col_text, ImU32 col_hovered = 0, ImU32 col_active = 0)
+    {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (window->SkipItems)
+            return false;
+
+        const ImGuiID id = window->GetID(label);
+       
+
+        // Поворот вокруг центра
+        const float angle_rad = angle_deg * IM_PI / 180.0f;
+        const float cos_a = cosf(angle_rad);
+        const float sin_a = sinf(angle_rad);
+
+        // Вычисляем 4 вершины квадрата с поворотом
+        ImVec2 verts[4];
+        ImVec2 corners[4] = {
+            ImVec2(-size.x * 0.5f, -size.y * 0.5f),
+            ImVec2(size.x * 0.5f, -size.y * 0.5f),
+            ImVec2(size.x * 0.5f,  size.y * 0.5f),
+            ImVec2(-size.x * 0.5f,  size.y * 0.5f)
+        };
+        ImVec2 bb_min = verts[0], bb_max = verts[0];
+        for (int i = 1; i < 4; ++i) {
+            bb_min.x = ImMin(bb_min.x, verts[i].x); bb_min.y = ImMin(bb_min.y, verts[i].y);
+            bb_max.x = ImMax(bb_max.x, verts[i].x); bb_max.y = ImMax(bb_max.y, verts[i].y);
+        }
+        const ImRect bb(bb_min, bb_max);
+        for (int i = 0; i < 4; ++i) {
+            float x = corners[i].x * cos_a - corners[i].y * sin_a;
+            float y = corners[i].x * sin_a + corners[i].y * cos_a;
+            verts[i].x = (center.x + ImVec2(x, y).x);
+            verts[i].y = (center.y + ImVec2(x, y).y);
+        }
+
+        // Проверка взаимодействия
+        bool hovered, held;
+        bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, ImGuiButtonFlags_MouseButtonLeft);
+
+        // Цвет в зависимости от состояния
+        ImU32 col = col_button;
+        if (held && hovered) col = col_active ? col_active : ImGui::GetColorU32(ImGuiCol_ButtonActive);
+        else if (hovered)    col = col_hovered ? col_hovered : ImGui::GetColorU32(ImGuiCol_ButtonHovered);
+
+        // Рисуем заливку и обводку
+        window->DrawList->AddQuadFilled(verts[0], verts[1], verts[2], verts[3], col);
+        window->DrawList->AddQuad(verts[0], verts[1], verts[2], verts[3], IM_COL32(0, 0, 0, 255), 1.5f);
+
+        // Повёрнутый текст
+        ImVec2 text_size = ImGui::CalcTextSize(label);
+        ImVec2 text_pos = {
+            (center.y - text_size.y) * 0.5f, (center.x - text_size.x) * 0.5f
+         };
+
+        window->DrawList->PushTextureID(ImGui::GetIO().Fonts->TexID);
+        window->DrawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), text_pos, col_text, label);
+        window->DrawList->PopTextureID();
+
+        return pressed;
+    }
+
 }
 ImVec4 RGBAtoIV4(float r, float g, float b, float a) {
     return ImVec4{
@@ -187,26 +290,55 @@ ImVec4 RGBAtoIV4(float r, float g, float b, float a) {
 
 
 //
-class CImage {
-public:
+struct CImage {
+
 
     float x[2] = { 250,230};
     float y[2] = { 250,230 };
     int fIctx = 0;
     int fIcty = 0;
+     float rot;
+     float scale;
     GLuint gl_buffer;
     unsigned char CICharBuffer[256];
     bool CreateImg();
     bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height, unsigned char* imgBuffer);
     ImVec2 ResizeImage(uint64_t fCArrayFloat);
     uint64_t InitCImage(std::string png_file);
-    bool CreateImage(int64_t w, int64_t h);
+    
     std::string getAspectRatio(int x, int y);
     int64_t GetImageSize(int width, int height);
     int64_t GetVRAMSize(GLuint vbo);
     int64_t GetFileSize(const std::string& filename);
+    void CreateImage(GLuint tx, float dt, ImVec2 windowSize, ImVec2 ImageSize);
 };
 
+void CImage::CreateImage(GLuint tx,float dt,ImVec2 windowSize,ImVec2 ImageSize) {
+  
+    rot += 30.0f * dt;
+    scale = 1.0f + 0.05f * sin(rot * 0.1f);
+
+    // Центрирование по ImageSize
+    ImGui::SetCursorPos({
+        windowSize.x / 2 - ImageSize.x / 2,
+        50
+        });
+
+    glPushMatrix();
+
+    // ДИНАМИЧЕСКИЙ ЦЕНТР!
+    float centerX = ImageSize.x / 2;
+    float centerY = ImageSize.y / 2;
+
+    glTranslatef(centerX, centerY, 0);   // к центру
+    glRotatef(rot, 0, 0, 1);             // вращаем
+    glScalef(scale, scale, 1);           // пульсируем
+    glTranslatef(-centerX, -centerY, 0); // обратно
+
+    ImGui::Image(reinterpret_cast<int64_t>(reinterpret_cast<void*>(tx)), ImageSize);
+
+    glPopMatrix();
+}//ImGui::Image(reinterpret_cast<int64_t>(reinterpret_cast<void*>(tx)), ImageSize);
 std::string CImage::getAspectRatio(int x, int y) {
     double ratio = (double)x / y;
     struct { double val; std::string name; } list[] = {
@@ -229,10 +361,7 @@ ImVec2 CImage::ResizeImage(uint64_t fCArrayFloat) {
     CImage::fIcty = CImage::y[fCArrayFloat];
     return ImVec2(fIctx, fIcty);
 }
-bool CImage::CreateImage(int64_t w, int64_t h) {
-    ImGui::Image((int64_t)(void*)CImage::gl_buffer, ImVec2(w, h));
-    return true;
-}
+
 int64_t CImage::GetImageSize(int width, int height) {
     // ������ � ����������� = ������ * ������ * 4 (��� RGBA, 4 ����� �� �������)
     return static_cast<int64_t>(width) * height * 4;
@@ -286,7 +415,7 @@ bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
     }
 }//
 struct KurlikAUDIO {
-    std::string audiolist[11] = { "assets/audio/kurlik.wav",
+    std::string audiolist[12] = { "assets/audio/kurlik.wav",
                                  "assets/audio/voda.wav",
                                  "assets/audio/krik.wav",
                                  "assets/audio/pidoras.wav",
@@ -296,7 +425,8 @@ struct KurlikAUDIO {
                                  "assets/audio/aaa.wav",
                                  "assets/audio/khuli-ty-govnom-to-vymazalsia.wav",
                                  "assets/audio/ponimaesh-chto-ty-poekhavshii.wav",
-                                 "assets/audio/sound_game.wav"
+                                 "assets/audio/sound_game.wav",
+                                 "assets/audio/click.wav"
     };
     void play(int64_t i);
     void play2(int64_t i);
@@ -306,6 +436,7 @@ struct KurlikAUDIO {
     void VuePlay(int64_t idxd, int64_t idx);
     void getTimeline(int64_t idx);
     void setReplay(bool isReplay);
+    void Mute();
     float convertToMinutes();
     int64_t idx = 0;
     float masterVolume = 0.02f;
@@ -313,6 +444,7 @@ struct KurlikAUDIO {
     Audio::Sound audioDevice,audioDevice2,audioDevice3;
     int64_t i64CurrentTimeLine = 0;
     bool isDeviceActive = false;
+    bool isAudioMuted = false;
     struct gain {
         float min = 0.0f;
         float max = 0.0f;
@@ -328,7 +460,22 @@ struct KurlikAUDIO {
     }
     };
     std::unique_ptr<time> audioTime = std::make_unique<time>();
+    std::string sLastAudioFile[3] = {"0","0","0"};
 };
+void KurlikAUDIO::Mute() {
+    if (audioDevice) {
+        audioDevice.pause();
+        audioDevice.setVolume(0);
+    }
+    if (audioDevice2) {
+        audioDevice2.pause();
+        audioDevice2.setVolume(0);
+    }
+    if (audioDevice3) {
+        audioDevice3.pause();
+        audioDevice3.setVolume(0);
+    }
+}
 void KurlikAUDIO::getGain(int64_t idx) {
     if (isDeviceActive) {
         switch (idx) {
@@ -454,8 +601,10 @@ void KurlikAUDIO::play(int64_t i) {
     idx = i;
     audioDevice.loadSound(audiolist[idx]);
     audioDevice.play();
-    audioDevice.setVolume(masterVolume);
+    audioDevice.setVolume(isAudioMuted ? 0 : masterVolume);
     isDeviceActive = audioDevice.isPlaying();
+    sLastAudioFile[0] = audiolist[idx];
+
    // std::cout << " [PahomEngine->KurlikAudio] audio device 0 :-> " << audiolist[idx] << " | volume_offset_:"<< masterVolume * 100 << "%" << std::endl;
 }
 void KurlikAUDIO::play2(int64_t i) {
@@ -463,8 +612,9 @@ void KurlikAUDIO::play2(int64_t i) {
     idx = i;
     audioDevice2.loadSound(audiolist[idx]);
     audioDevice2.play();
-    audioDevice2.setVolume(masterVolume);
+    audioDevice2.setVolume(isAudioMuted ? 0 : masterVolume);
     isDeviceActive = audioDevice2.isPlaying();
+    sLastAudioFile[1] = audiolist[idx];
    // std::cout << " [PahomEngine->KurlikAudio] audio device 1 :-> " << audiolist[idx] << " | volume_offset_:" << masterVolume * 100 << "%" << std::endl;
 }
 void KurlikAUDIO::play3(int64_t i) {
@@ -472,8 +622,9 @@ void KurlikAUDIO::play3(int64_t i) {
     idx = i;
     audioDevice3.loadSound(audiolist[idx]);
     audioDevice3.play();
-    audioDevice3.setVolume(masterVolume + 0.1f);
+    audioDevice3.setVolume(isAudioMuted ? 0 : masterVolume);
     isDeviceActive = audioDevice3.isPlaying();
+    sLastAudioFile[2] = audiolist[idx];
     //std::cout << " [PahomEngine->KurlikAudio] audio device 2 :-> " << audiolist[idx] << " | volume_offset_:" << masterVolume * 100 << "%" << std::endl;
 }
 void KurlikAUDIO::setReplay(bool isReplay) {
@@ -557,10 +708,11 @@ struct KEYMAPDATA {
     int8_t u8BACK = 'D';
     int8_t u8RESET = 'R';
     int8_t u8SPACE = VK_SPACE;
+    int8_t u8JUMP = 'W';
     int8_t u8ButtonLeft = 'L';
     int8_t u8ButtonRight = 'R';
     int64_t kbDelay = 0;
-    int64_t vMaxDelay = 3;
+    int64_t vMaxDelay = 1;
     int64_t i64BACKGamepad = XINPUT_GAMEPAD_DPAD_LEFT;
     int64_t i64FORWARDGamepad = XINPUT_GAMEPAD_DPAD_RIGHT;
     int64_t i64UPGamepad = XINPUT_GAMEPAD_DPAD_UP;
@@ -648,6 +800,7 @@ struct GameEvent {
         }
         
     }
+    std::string sConsoleBufferString;
     void Text(ImVec4 col, std::string text) {
         TextBufferStr = text;
         setColorText(col);
@@ -669,6 +822,12 @@ struct GameEvent {
             isTextHidden = true;
             i64t = 0;
         }
+    }
+    void WriteLog(std::string text) {
+        sConsoleBufferString += "\n"+text;
+    }
+    void ConsoleBuffer() {
+        ImGui::Text(sConsoleBufferString.c_str());
     }
     float progress = 0.0f; // Прогресс анимации
     bool drawReset = false;
@@ -707,6 +866,8 @@ struct GameEvent {
     bool bScreamEvent = false;
     bool bScreamEventBackground = false;
     bool bDemoPlay = false;
+    int32_t i32ReverseImage = -1;
+    bool AutoScaleImage = false;
 };
 std::string logoPahom =
 " %%%%%%  %%%%%  %%%  %%%   %%%   %%%    %%%\n"
@@ -737,6 +898,7 @@ struct EXCEPTIONS {
     int64_t i64MemoryUsageProcess = 0;
     void log(std::string t) {
         std::cout << "Exception Error: " << t << std::endl;
+
     }
 
     void GetProcessMemoryUsage() {
@@ -919,10 +1081,35 @@ struct cpu_bench64 {
     std::chrono::steady_clock::time_point timeBenchOut;
     int64_t i64BenchLastTime = 0;
     std::atomic<int64_t> i64MaxSize = 10000000000;
+    std::atomic<int64_t> i64MaxTexturesLoad = 10000;
     std::atomic<int64_t> i64ChunkSize = 0;
     std::atomic<int32_t> i32max_thread = 0;
     std::atomic<int32_t> i32CallFunc = 0;
     std::atomic<int64_t> i64MemorySize = 0;
+    std::unique_ptr<CImage>  Textures = std::make_unique<CImage>();
+    std::atomic<int64_t> vram = 0;
+    std::atomic<int64_t> outtime = 0;
+    std::atomic<int64_t> i64sucTx = 0;
+    std::atomic<std::chrono::steady_clock::time_point> intime;
+    std::atomic<std::chrono::steady_clock::time_point> outime;
+    // work not correcty #FIXME
+    void gpu_render(int64_t count) {
+        GLuint textureBuffer[1000];
+        unsigned char textureBufferu8[1000];
+        int ximage[1000],yimage[1000];
+        intime = std::chrono::high_resolution_clock::now();
+        for (int64_t image_render = 0; image_render < count; image_render++) {
+            if (Textures->LoadTextureFromFile("assets/pahom.png", &textureBuffer[image_render], &ximage[image_render], &yimage[image_render], &textureBufferu8[image_render])) {
+                vram.fetch_add(((ximage[image_render] * yimage[image_render]) * 4), std::memory_order_relaxed);
+                i64sucTx += image_render;
+            }
+        }
+        std::cout << " --------------------------------------------------------------" << std::endl;
+        std::cout << "loaded " << i64sucTx.load() << " / " << count << " vramLoaded: " << vram.load() / 1024 / 1024 << "MB" << std::endl;
+        outime = std::chrono::high_resolution_clock::now();
+        outtime.fetch_add(std::chrono::duration_cast<std::chrono::milliseconds>(outime.load() - intime.load()).count(), std::memory_order_relaxed);
+        std::cout << "time :" << outtime.load() <<" ms" << std::endl;
+    }
     std::string hashFn128(int64_t sz) {
         std::string bff;
         i32CallFunc.fetch_add(1, std::memory_order_relaxed);
@@ -956,13 +1143,88 @@ struct cpu_bench64 {
         cpu_threads.reserve(i32max_thread.load());
         for (uint32_t i32threads = 0; i32threads < i32max_thread.load(); i32threads++) {
             cpu_threads.emplace_back(&cpu_bench64::hashFn128,this, i64ChunkSize.load());
+          
         }
         
        
     }
+    // work not correcty #FIXME
+    void mathFlow(int64_t sz) {
+        d64Vec2 mathD64;
+        for (int64_t d = 0; d < sz; d++) {
+            mathD64.x = 9.9999999999L;
+            mathD64.y = 0.9L;
+            d64->DA_(mathD64.x, mathD64.y);
+
+        }
+    }
+    // work not correcty #FIXME
+    void mt_math_flow() {
+
+        i32max_thread.store(std::jthread::hardware_concurrency(), std::memory_order_relaxed);
+        i64ChunkSize.store(20000 / i32max_thread, std::memory_order_relaxed);
+        std::vector<std::jthread> cpu_threads;
+        cpu_threads.reserve(i32max_thread.load());
+        for (uint32_t i32threads = 0; i32threads < i32max_thread.load(); i32threads++) {
+            cpu_threads.emplace_back(&cpu_bench64::mathFlow, this, i64ChunkSize.load());
+
+        }
+
+
+    }
+    // work not correcty #FIXME
+    void mt_gpu() {
+        HANDLE hHandleConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        i32max_thread.store(std::jthread::hardware_concurrency(), std::memory_order_relaxed);
+        i64ChunkSize.store(i64MaxSize / i32max_thread, std::memory_order_relaxed);
+        std::vector<std::jthread> cpu_threads;
+        cpu_threads.reserve(i32max_thread.load());
+        for (uint32_t i32threads = 0; i32threads < i32max_thread.load(); i32threads++) {
+            cpu_threads.emplace_back(&cpu_bench64::gpu_render, this, 1000 / i32max_thread.load());
+            SetConsoleTextAttribute(hHandleConsole, 35);
+            std::cout << " join() -> std::jthread tCPU" << i32threads << std::endl;
+            SetConsoleTextAttribute(hHandleConsole, 15);
+            
+        }
+        
+
+    }
 };
 
 struct GameUI {
+    void Message(std::string text,ImVec2 MaxSizeWindow,float step_to_speed,double64_t d64DelayToClear,bool *bCurrentWindowShowFlag) {
+        
+        static ImVec2 sizeSmottly = { 10,10 };
+        static double64_t d64DelayToClearIn = 0.0L;
+        static ImVec2 posCenter = 
+        { (ImGui::GetWindowSize().x - sizeSmottly.x) / 2,
+          (ImGui::GetWindowSize().y - sizeSmottly.y) / 2
+        };
+       
+        sizeSmottly.x += (step_to_speed * ImGui::GetIO().DeltaTime);
+        sizeSmottly.y += (step_to_speed * ImGui::GetIO().DeltaTime);
+        if (sizeSmottly.x >= MaxSizeWindow.x) {
+            sizeSmottly.x = MaxSizeWindow.x;
+            
+        }
+        if (sizeSmottly.y >= MaxSizeWindow.y) {
+            sizeSmottly.y = MaxSizeWindow.y;
+        }
+        ImGui::SetCursorPos(posCenter);
+        if (ImGui::BeginChild("text_message", sizeSmottly, ImGuiChildFlags_FrameStyle)) {
+            ImGui::Text(text.c_str());
+            ImGui::EndChild();
+        }
+        if(bCurrentWindowShowFlag)
+        {
+            d64DelayToClearIn += 1;
+            if (d64DelayToClearIn >= d64DelayToClear) {
+                sizeSmottly = { 10,10 };
+                d64DelayToClearIn = 0.0L;
+                *bCurrentWindowShowFlag = false;
+            }
+        }
+    }
     int32_t i32idButton = 0;
     void clear() {
         i32idButton = 0;
@@ -970,13 +1232,67 @@ struct GameUI {
     void SetCountsButton(int32_t c) {
         i32idButton = c;
     }
+    // beta
+    void PaintIm(ImVec2 pos, float radius, ImVec4 col)
+    {
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImU32 color = ImGui::ColorConvertFloat4ToU32(col);
+        for(int p = 0; p < pos.x;p++)
+        {
+            drawList->AddCircleFilled(pos, radius, color, 0); // 0 = default segments (auto)
+        }
+    }
     bool TextButton(ImVec4 colHovered, ImVec4 colDefault, const std::string& text, bool isCenterX = false, bool active = false) {
         static bool isPresedButton = false, isHoveredButton = false;
-        ImGui::SetCursorPosX(isCenterX ? ((ImGui::GetWindowWidth() - ImGui::CalcTextSize(text.c_str()).x) / 2) : 0);
+        if (isCenterX) {
+            ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(text.c_str()).x) / 2);
+        }
         ImGui::TextColored((ImGui::IsItemHovered() || active) ? colHovered : colDefault, text.c_str());
         isHoveredButton = ImGui::IsItemHovered();
         isPresedButton = ImGui::IsItemClicked();
         return isPresedButton;
+    }
+    ImVec4 conv(ImVec4 col) {
+        return ImVec4{
+            col.x / 255,
+            col.y / 255,
+            col.z / 255,
+            col.w / 255
+        };
+    }
+    bool CustomButton(ImVec4 colButton = { 155,255,0,255 }, ImVec4 ColBorder = { 35,35,35,255 }, ImVec4 colText = { 255,255,255,255 }, float rounding = 10, ImVec2 padiing = { 0,0 }, const char* label = "Button", ImFont* Font = nullptr , ImVec2 size = { 100,30 }) {
+        static ImVec2 FramePadding = padiing; static float FrameRounding = rounding, BorderSize = 2;
+        static bool isClickedButton = false;
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, FramePadding);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, FrameRounding);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, BorderSize);
+        ImGui::PushStyleColor(ImGuiCol_Button, conv(colButton));
+        ImGui::PushStyleColor(ImGuiCol_Border, conv(ColBorder));
+        ImGui::PushStyleColor(ImGuiCol_Text, conv(colText));
+        if (Font) {
+            ImGui::PushFont(Font);
+            isClickedButton =  ImGui::Button(label, size);
+            ImGui::PopFont();
+        }
+        else {
+            std::cout << "[PahomEngine::GameUI] func CustomButton(...,ImFont *Font = nullptr); Font Error!" << std::endl;
+            isClickedButton =  ImGui::Button(label, size);
+        }
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(3);
+        return isClickedButton;
+    }
+    void TextAnimated(const std::string& text, int type = 0, int speed = 3) {
+        static int t = 0, p = 0; static bool dir = true;
+        if (++t >= speed) {
+            t = 0;
+            if (type == 0) { dir ? p++ : p--; if (p >= (int)text.size()) dir = false; if (p <= 0) dir = true; }
+            if (type == 1) p = (p + 1) % (text.size() + 1);
+            if (type == 2) p = (p + 1) % 40;
+        }
+        ImGui::Text("%s", (type == 0 ? text.substr(0, p) :
+            type == 1 ? text.substr(0, text.size() - p) :
+            std::string(text + ((p < 20) ? "_" : " "))).c_str());
     }
     void SetFont(ImFont* font) {
         ImGui::PushFont(font);
@@ -984,14 +1300,149 @@ struct GameUI {
     void EndFont() {
         ImGui::PopFont();
     }
+    
+};
+struct GamepadButtons {
+    struct buttons {
+        bool bGButtonL = false;
+        bool bGButtonR = false;
+        bool bGButtonU = false;
+        bool bGButtonD = false;
+        bool bGButtonSTART = false;
+    };
+    std::unique_ptr<buttons> GButtons = std::make_unique<buttons>();
+    void GamepadButtonRender(std::string gamepad_button_name, ImVec4 col = { 255,255,0,255 },bool v = false) {
+        ImGui::BeginGroup();
+        ImVec2 canvasSize = ImVec2(32, 32);
+
+        ImVec2 canvasPos = ImGui::GetCursorScreenPos();
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImU32 border_color = ImGui::GetColorU32(ImGuiCol_Border);
+        ImGuiStyle& style = ImGui::GetStyle();
+        float radius = canvasSize.x * 0.5f;
+
+        // Рассчитываем размер текста
+        ImVec2 text_size = ImGui::CalcTextSize(gamepad_button_name.c_str());
+
+        // Вычисляем центр кнопки
+        ImVec2 center = ImVec2(canvasPos.x + radius, canvasPos.y + radius);
+
+        // Позиция текста (центрированная)
+        ImVec2 text_pos = ImVec2(
+            center.x - text_size.x * 0.5f,
+            center.y - text_size.y * 0.5f
+        );
+
+        // Отрисовка текста через drawList
+        if (style.FrameBorderSize > 0.0f) {
+            drawList->AddCircle(
+                center,
+                radius - style.FrameBorderSize * 0.5f,
+                border_color,
+                0, // Автоматическое количество сегментов
+                style.FrameBorderSize
+            );
+        }
+
+        // Фоновый круг
+        drawList->AddCircleFilled(
+            center,
+            radius - style.FrameBorderSize,
+            ImGui::GetColorU32(v ? col : ImVec4(7 / 255, 7 / 255, 7 / 255, 1))
+        );
+        drawList->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), gamepad_button_name.c_str());
+
+        // Положение стика (предполагаем, что v - нормализованное значение [-1, 1])
+
+        // Перемещаем курсор для следующих элементов ImGui
+        ImGui::Dummy(canvasSize);
+        ImGui::EndGroup();
+
+    }
+    ImVec2 minValue(ImVec2 a, ImVec2 b) {
+        static float ax_min = 0.0f;
+        static float by_min = 0.0f;
+        if (a.x > a.y) {
+            ax_min = a.y;
+        }
+        else {
+            ax_min = a.x;
+        }
+        if (b.x > b.y) {
+            by_min = b.y;
+        }
+        else {
+            by_min = b.x;
+        }
+        return ImVec2(ax_min, by_min);
+    }
+    ImVec4 RGBAtoIv4(ImVec4 col) {
+        return ImVec4{
+            col.x / 255,
+            col.y / 255,
+            col.z / 255,
+            col.w / 255
+        };
+    }
+    void KeyButtonRender(std::string gamepad_button_name, ImVec4 col = { 255,255,0,255 }, bool v = false) {
+        ImGui::BeginGroup();
+        ImVec2 canvasSize = ImVec2(32, 32);
+
+        ImVec2 canvasPos = ImGui::GetCursorScreenPos();
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImU32 border_color = ImGui::GetColorU32(ImGuiCol_Border);
+        ImGuiStyle& style = ImGui::GetStyle();
+        float radius = 1;
+
+        // Рассчитываем размер текста
+        ImVec2 text_size = ImGui::CalcTextSize(gamepad_button_name.c_str());
+
+        // Вычисляем центр кнопки
+        ImVec2 center = ImVec2(canvasPos.x + radius, canvasPos.y + radius);
+
+        // Позиция текста (центрированная)
+        ImVec2 text_pos = ImVec2(
+            center.x - text_size.x * 0.5f,
+            center.y - text_size.y * 0.5f
+        );
+
+        // Отрисовка текста через drawList
+        if (style.FrameBorderSize > 0.0f) {
+            drawList->AddCircle(
+                center,
+                radius - style.FrameBorderSize * 0.5f,
+                border_color,
+                0, // Автоматическое количество сегментов
+                style.FrameBorderSize
+            );
+        }
+
+        // Фоновый круг
+        drawList->AddCircleFilled(
+            center,
+            radius - style.FrameBorderSize,
+            ImGui::GetColorU32(v ? RGBAtoIv4(col) : RGBAtoIv4(ImVec4(12, 34, 133, 255)))
+        );
+        drawList->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), gamepad_button_name.c_str());
+
+        // Положение стика (предполагаем, что v - нормализованное значение [-1, 1])
+
+        // Перемещаем курсор для следующих элементов ImGui
+        ImGui::Dummy(canvasSize);
+        ImGui::EndGroup();
+
+    }
+   
 };
 struct PahomEngineStruct {
     //
-    std::string sBuild = "0.7.1";
-    std::string sBuildGame = "0.7.1";
+    std::string sBuild = "0.8.2";
+    std::string sBuildGame = "0.8.2";
     //
-    std::wstring sWBuild = L"0.7.1";
-    std::wstring sWBuildGame = L"0.7.1";
+    std::wstring sWBuild = L"0.8.2";
+    std::wstring sWBuildGame = L"0.8.2";
     //
     bool CVsync = true;
     uint64_t fCPoint = 0;
@@ -1000,6 +1451,9 @@ struct PahomEngineStruct {
     std::unique_ptr<JoyStickAPI> ptrGamepad1 = std::make_unique<JoyStickAPI>(1);
     std::unique_ptr<cpu_bench64> Bench64ptr = std::make_unique<cpu_bench64>();
     std::unique_ptr<GameUI> UI = std::make_unique<GameUI>();
+    std::unique_ptr<GamepadButtons> GamepadUI = std::make_unique<GamepadButtons>();
+    std::random_device rd;
+    
     struct mathValues {
         template <typename Tm>
         Tm minv(Tm a, Tm b) {
@@ -1013,18 +1467,57 @@ struct PahomEngineStruct {
         Tm abs(Tm x) {
             std::abs(x);
         }
+        template <typename Tm>
+        Tm fade_add(Tm *x, Tm interval, Tm max_interval,Tm add_part_count) {
+            static Tm a = 0;
+            std::cout << std::format("{} interval:{} max_interval:{} add:{}\n", *x, interval, max_interval, add_part_count);
+            a += interval;
+            if (a > max_interval) {
+                *x += add_part_count;
+                a = 0;
+            }
+            return *x;   
+        }
+        template <typename T>
+        std::string find(T str, T sub)
+        {
+            std::string str_buf = std::to_string(str);
+            std::string sub_buf = std::to_string(sub);
+            std::string buf;
+            for (int i = 0; (i = str_buf.find(sub_buf, i)) != std::string::npos; i = i + sub_buf.size())
+            {
+                buf += sub_buf;
+            }
+
+            return buf;
+        }
+        bool findV(int64_t v, int64_t find_v) {
+            std::string strBuffer = std::format("{}", v);
+            int32_t sizeBuffer = strBuffer.size();
+            for (int32_t cint = 0; cint < sizeBuffer; cint++) {
+                if (std::format("{}", strBuffer[cint]) == std::format("{}", find_v)) {
+                    return true;
+                }
+            }
+        }
         
         template <typename Tm>
-        Tm random(Tm value_max) {
-            std::random_device rd; 
-            std::mt19937 gen(rd());
-            if constexpr  (std::is_floating_point_v<Tm>) {
-                std::uniform_real_distribution<Tm> dist(2, value_max);
-                return dist(gen);
+        Tm random(Tm value_max, bool bIsUseRandomDevice = false) {
+            if(!bIsUseRandomDevice)
+            {
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                if constexpr (std::is_floating_point_v<Tm>) {
+                    std::uniform_real_distribution<Tm> dist(0, value_max);
+                    return dist(gen);
+                }
+                else {
+                    std::uniform_int_distribution<Tm> dist(0, value_max);
+                    return dist(gen);
+                }
             }
             else {
-                std::uniform_int_distribution<Tm> dist(2, value_max);
-                return dist(gen);
+                return static_cast<Tm>(rand() % static_cast<int>(value_max));
             }
         }
     };
@@ -1039,6 +1532,14 @@ struct PahomEngineStruct {
             return std::format("{}", type);
         }
     };
+    struct bufferio {
+        template <class... Tm>
+        void print(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
+          std::cout<< _STD vformat(_Fmt.get(), _STD make_format_args(_Args...));
+           // std::fwrite(_STD vformat(_Fmt.get(), _STD make_format_args(_Args...)));
+        }
+    };
+    std::unique_ptr<bufferio> cio = std::make_unique<bufferio>();
     std::unique_ptr<castValues> cast = std::make_unique<castValues>();
     std::unique_ptr<mathValues> math = std::make_unique<mathValues>();
     bool StyleLoad();
@@ -1105,7 +1606,7 @@ struct PahomEngineStruct {
     bool bKefir = false;
     int64_t i64RandBoost = 0;
     int64_t i64ValuesRands[4] = { 50 , 100, 256, 777 };
-    bool GetGamepadKey(int64_t iKey);
+    bool GetGamepadKey(int64_t iKey, int iMaxDelay);
     int64_t i64BreadSize[2] = { 64,64 };
     int64_t i64PahomSize[2] = { 128,128 };
     void Text(ImVec4 col, std::string text);
@@ -1121,12 +1622,43 @@ struct PahomEngineStruct {
         return reinterpret_cast<int64_t>(reinterpret_cast<void*>(tx));
     }
     int32_t SetSizeHWND(HWND hwnd, int32_t x, int32_t y);
+    void selectedItem(bool v, float rounding);
     void stdoutColored(std::string out, int16_t i16colorText);
     bool bLogEnabled = false;
+    //
+    template <typename T> using ArrayBuf = std::vector<T>;
+    void clearPos();
+    void setTextCenterXYRect(const char* text);
+    template <class... Tm>
+    void Text(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
+        ImGui::Text(_STD vformat(_Fmt.get(), _STD make_format_args(_Args...)).c_str());
+        //_STD vformat_to(_Fmt.get(), _STD make_format_args(_Args...));
+    }
+    template <class... Tm>
+    void TextColored(ImVec4 col,const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
+        ImGui::TextColored(col,_STD vformat(_Fmt.get(), _STD make_format_args(_Args...)).c_str());
+        //_STD vformat_to(_Fmt.get(), _STD make_format_args(_Args...));
+    }
+   
 };
+void PahomEngineStruct::selectedItem(bool v,float rounding = 20) {
+    ImDrawList* dw = ImGui::GetWindowDrawList();
+    if (v) {
+        dw->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(RGBA(255, 255, 255, 255)), rounding, 0,3);
+    }
+}
+void PahomEngineStruct::clearPos() {
+    fPahomPosX = 0;
+    fPahomPosY = 0;
+    fBreadPosX = 0;
+    fBreadPosY = 0;
+}
 void  PahomEngineStruct::log(std::string text) {
     if (bLogEnabled) {
         std::cout << " [PahomEngine::" << text << std::endl;
+    }
+    else {
+        Event.WriteLog(text);
     }
 }
 void  PahomEngineStruct::Text(ImVec4 col, std::string text) {
@@ -1135,8 +1667,12 @@ void  PahomEngineStruct::Text(ImVec4 col, std::string text) {
 void  PahomEngineStruct::Tbuffer() {
     PahomEngineStruct::Event.TextBuffer();
 }
-bool  PahomEngineStruct::GetGamepadKey(int64_t iKey) {
-   return ptrGamepad1->GetState().Gamepad.wButtons == iKey ? true : false;
+bool  PahomEngineStruct::GetGamepadKey(int64_t iKey,int iMaxDelay) {
+    static int iD = 0;
+    iD++;
+    if (iD > iMaxDelay) {
+        return ptrGamepad1->GetState().Gamepad.wButtons == iKey ? true : false;
+    }
 }
 int64_t PahomEngineStruct::rand64(int64_t in_v) {
     std::random_device rd; // ������������� ������
@@ -1194,6 +1730,13 @@ void PahomEngineStruct::setTextCenterXY(const char* text) {
     ImGui::SetCursorPos(ImVec2{
         (i64WindowSize[0] - fTextSize.x) / 2,
         (i64WindowSize[1] - fTextSize.y) / 2
+        });
+}
+void PahomEngineStruct::setTextCenterXYRect(const char* text) {
+    ImVec2 fTextSize = ImGui::CalcTextSize(text);
+    ImGui::SetCursorPos(ImVec2{
+        (ImGui::GetItemRectSize().x - fTextSize.x) / 2,
+        (ImGui::GetItemRectSize().y - fTextSize.y) / 2
         });
 }
 bool PahomEngineStruct::CheckColiision() {
@@ -1362,11 +1905,36 @@ bool PahomEngineStruct::StyleLoad() {
     colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
     style.FrameBorderSize = 1;
+
     return true;
 }
 auto PahomEngine = std::make_unique<PahomEngineStruct>();
-
-template <typename T>
-struct ArrayBuf : std::vector<T> {
-    using std::vector<T>::vector;
+namespace PE {
+    template <class... Tm>
+    void print(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
+        std::cout << _STD vformat(_Fmt.get(), _STD make_format_args(_Args...));
+       //_STD vformat_to(_Fmt.get(), _STD make_format_args(_Args...));
+    }
+    template <class... Tm>
+    std::string ToString(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
+        return _STD vformat(_Fmt.get(), _STD make_format_args(_Args...));
+        //_STD vformat_to(_Fmt.get(), _STD make_format_args(_Args...));
+    }
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    template <typename Tm>
+    Tm random(Tm value_max, bool bIsCached = false) {
+        if (!bIsCached) {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+        }
+        if constexpr (std::is_floating_point_v<Tm>) {
+            std::uniform_real_distribution<Tm> dist(0, value_max);
+            return dist(gen);
+        }
+        else {
+            std::uniform_int_distribution<Tm> dist(0, value_max);
+            return dist(gen);
+        }
+    }
 };

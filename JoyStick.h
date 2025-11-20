@@ -24,7 +24,9 @@ public:
     void Vibrate(int64_t leftVal = 0, int64_t rightVal = 0);
     int64_t BatLevel();
     int64_t GetCountControllers(int64_t i);
-    battery *xBattery = new battery;
+   // battery *xBattery = new battery;
+    bool bVibrationEnable = false;
+    std::unique_ptr<battery> xBattery = std::make_unique<battery>();
 };
 int64_t JoyStickAPI::GetCountControllers(int64_t i) {
     return _controllerNum;
@@ -79,15 +81,18 @@ int64_t JoyStickAPI::BatLevel()
 void JoyStickAPI::Vibrate(int64_t  leftVal, int64_t rightVal)
 {
     // Create a Vibraton State
-    XINPUT_VIBRATION Vibration;
+    if(bVibrationEnable)
+    {
+        XINPUT_VIBRATION Vibration;
 
-    // Zeroise the Vibration
-    ZeroMemory(&Vibration, sizeof(XINPUT_VIBRATION));
+        // Zeroise the Vibration
+        ZeroMemory(&Vibration, sizeof(XINPUT_VIBRATION));
 
-    // Set the Vibration Values
-    Vibration.wLeftMotorSpeed = leftVal;
-    Vibration.wRightMotorSpeed = rightVal;
+        // Set the Vibration Values
+        Vibration.wLeftMotorSpeed = leftVal;
+        Vibration.wRightMotorSpeed = rightVal;
 
-    // Vibrate the controller
-    XInputSetState(_controllerNum, &Vibration);
+        // Vibrate the controller
+        XInputSetState(_controllerNum, &Vibration);
+    }
 }
