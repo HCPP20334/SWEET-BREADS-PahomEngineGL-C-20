@@ -1,4 +1,5 @@
 #define CRT_NO_WARNINGS 1
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_win32.h"
@@ -17,6 +18,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include <wtypes.h>
+
 #include "imgui_internal.h"
 #include <filesystem>
 #include <intrin.h>
@@ -37,8 +39,14 @@
 #include <stdexcept>
 #define _CRT_INTERNAL_NONSTDC_NAMES 1
 #include <stdio.h>
+#include <pdh.h>
 //
+#if !_HAS_CXX20
+#error "PahomEngine требует C++20 или новее. Включи флаг -std=c++20 (g++) или /std:c++20 (MSVC)"
+#endif
 
+#pragma comment(lib, "pdh.lib")
+#define PE_ARRAYSIZE(_ARR) (static_cast<int>(sizeof(_ARR) / sizeof(*(_ARR)))) 
 typedef long double double64_t;
 constexpr size_t double64_t_size = sizeof(double64_t);
 struct d64Vec2 {
@@ -80,6 +88,8 @@ struct d64Vec2 {
     }
 };
 auto d64 = std::make_unique<d64Vec2>();
+
+
 //
 typedef void (APIENTRY* PFNGLBINDBUFFERPROC)(GLenum target, GLuint buffer);
 typedef void (APIENTRY* PFNGLGETBUFFERPARAMETERIVPROC)(GLenum target, GLenum pname, GLint* params);
@@ -203,6 +213,55 @@ namespace ImGui {
 
         window->DrawList->PathStroke(color, false, thickness);
     }
+    bool SpinnerBar(const char* label, float progress, float radius = 12.0f, int thickness = 4, ImU32 color = IM_COL32(255, 255, 255, 200))
+    {
+        ImGuiWindow* window = GetCurrentWindow();
+        if (window->SkipItems) return false;
+
+        ImGuiContext& g = *GImGui;
+        const ImGuiStyle& style = g.Style;
+        const ImGuiID id = window->GetID(label);
+
+        ImVec2 pos = window->DC.CursorPos;
+        ImVec2 size(radius * 2, radius * 2 + style.FramePadding.y * 2);
+
+        const ImRect bb(pos, ImVec2(pos.x + size.x,pos.y + size.y));
+        ItemSize(bb, style.FramePadding.y);
+        if (!ItemAdd(bb, id)) return false;
+
+        const ImVec2 center = ImVec2(pos.x + radius, pos.y + radius + style.FramePadding.y);
+
+        ImDrawList* draw_list = window->DrawList;
+
+        // Фон (опционально — серый круг)
+        // draw_list->AddCircleFilled(center, radius, IM_COL32(40, 40, 40, 100), 64);
+
+        const float start_angle = -IM_PI / 2.0f;  // с 12 часов
+        const float end_angle = start_angle + IM_PI * 2.0f * progress; // по прогрессу
+
+        // Плавная анимация "хвоста" (чтобы не обрывалось резко)
+        const float anim_speed = 2.5f;
+        const float tail_length = 0.3f; // 30% круга
+        float anim_offset = ImSin(g.Time * anim_speed) * tail_length * IM_PI * 2.0f;
+
+        // Основная дуга
+        draw_list->PathClear();
+        draw_list->PathArcTo(center, radius, start_angle + anim_offset, end_angle + anim_offset, 64);
+        draw_list->PathStroke(color, false, thickness);
+        if (label && label[0] != '\0') {
+            ImVec2 text_size = ImGui::CalcTextSize(label);
+            ImVec2 text_pos(
+                center.x - text_size.x * 0.5f,
+                center.y - text_size.y * 0.5f
+            );
+
+            // Тень (по желанию — красивее)
+            draw_list->AddText(ImVec2(text_pos.x + ImVec2(1, 1).x, text_pos.y + ImVec2(1, 1).y), IM_COL32(0, 0, 0, 100), label);
+            // Основной текст
+            draw_list->AddText(text_pos, IM_COL32(255, 255, 255, 255), label);
+        }
+        return true;
+    }
     bool InputInt64(const char* label, int64_t* v, int64_t step, int64_t step_fast, ImGuiInputTextFlags flags)
     {
         // Hexadecimal input provided as a convenience but the flag name is awkward. Typically you'd use InputText() to parse your own data, if you want to handle prefixes.
@@ -311,6 +370,7 @@ struct CImage {
     int64_t GetVRAMSize(GLuint vbo);
     int64_t GetFileSize(const std::string& filename);
     void CreateImage(GLuint tx, float dt, ImVec2 windowSize, ImVec2 ImageSize);
+    bool LoadTextureRawData(unsigned char* raw, GLuint* out_texture, int* out_width, int* out_height);
 };
 
 void CImage::CreateImage(GLuint tx,float dt,ImVec2 windowSize,ImVec2 ImageSize) {
@@ -376,21 +436,53 @@ int64_t CImage::GetFileSize(const std::string& filename) {
     ImageStream.close();
     return fileSize;
 }
+bool CImage::LoadTextureRawData(unsigned char* raw, GLuint* out_texture, int* out_width, int* out_height) {
+    int image_width = 0;
+    int image_height = 0;
+    static int ic = 0;
+    if (!raw)
+    {
+        return false;
+    }
+    else {
+
+        std::cout << std::dec << image_width << " x " << image_height << std::endl;
+
+        GLuint image_texture;
+        glGenTextures(1, &image_texture);
+        glBindTexture(GL_TEXTURE_2D, image_texture);
+
+        // Setup filtering parameters for display
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        // Upload pixels into texture
+#if defined(GL_UNPACK_ROW_LENGTH) && !defined(__EMSCRIPTEN__)
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+#endif
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, (void*)raw);
+        *out_texture = image_texture;
+        *out_width = image_width;
+        *out_height = image_height;
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+    }
+}//
 bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height, unsigned char* imgBuffer) {
     int image_width = 0;
     int image_height = 0;
     static int ic = 0;
+    
     unsigned char* image_data = stbi_load(filename, &image_width, &image_height, NULL, 4);
     if (!image_data)
     {
         return false;
     }
     else {
-        std::cout << " PahomEngine::GL--(debug_gl) buffer: ";
-        for (size_t i = 0; i < std::min<size_t>(16, image_width * image_height * 4); ++i) {
-            std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)image_data[i] << " ";
-        }
+       
         std::cout << std::dec << image_width << " x " << image_height << std::endl;
+       
         GLuint image_texture;
         glGenTextures(1, &image_texture);
         glBindTexture(GL_TEXTURE_2D, image_texture);
@@ -459,6 +551,16 @@ struct KurlikAUDIO {
             return (std::to_string(minutes) + ":" + (secs < 10 ? "0" : " ") + std::to_string(secs)).c_str();
     }
     };
+    bool audioFileIsOK(std::string file) {
+        std::ifstream fileAssets(file);
+        if (fileAssets.is_open()) {
+            return true;
+        }
+        else {
+            return false;
+        }
+        fileAssets.close();
+    }
     std::unique_ptr<time> audioTime = std::make_unique<time>();
     std::string sLastAudioFile[3] = {"0","0","0"};
 };
@@ -668,7 +770,7 @@ struct STRINGSDATA {
 // 
 
 
-#define engine_bulid std::wstring(L"0.6.98a");
+#define engine_bulid std::wstring(L"0.8.3 (pre-release)");
 
 //
 struct ASSETSDATA {
@@ -777,6 +879,26 @@ struct MEMORYDATA {
         }
 
         return result;
+    }
+
+
+    double GetCpuUsage() {
+        static PDH_HQUERY   cpuQuery;
+        static PDH_HCOUNTER cpuTotal;
+        static bool first = true;
+
+        if (first) {
+            PdhOpenQuery(NULL, 0, &cpuQuery);
+            PdhAddCounter(cpuQuery, L"\\Processor(_Total)\\% Processor Time", NULL, &cpuTotal);
+            first = false;
+            PdhCollectQueryData(cpuQuery);
+            Sleep(100);
+        }
+
+        PdhCollectQueryData(cpuQuery);
+        PDH_FMT_COUNTERVALUE counterVal;
+        PdhGetFormattedCounterValue(cpuTotal, PDH_FMT_DOUBLE, NULL, &counterVal);
+        return counterVal.doubleValue;
     }
 };
 auto ptrMemory = std::make_unique<MEMORYDATA>();
@@ -1192,15 +1314,22 @@ struct cpu_bench64 {
 };
 
 struct GameUI {
-    void Message(std::string text,ImVec2 MaxSizeWindow,float step_to_speed,double64_t d64DelayToClear,bool *bCurrentWindowShowFlag) {
+    void Message(std::string text, ImVec2 MaxSizeWindow, float step_to_speed, double64_t d64DelayToClear, bool* bCurrentWindowShowFlag, bool bShowCenter = false) {
         
         static ImVec2 sizeSmottly = { 10,10 };
         static double64_t d64DelayToClearIn = 0.0L;
-        static ImVec2 posCenter = 
-        { (ImGui::GetWindowSize().x - sizeSmottly.x) / 2,
-          (ImGui::GetWindowSize().y - sizeSmottly.y) / 2
-        };
-       
+        static ImVec2 posCenter = {};
+        if (bShowCenter) {
+            posCenter = { (ImGui::GetWindowSize().x - MaxSizeWindow.x) / 2,
+                          (100)
+            };
+        }
+        else {
+            posCenter = {
+                           (0),
+                           (30)
+            };
+        }
         sizeSmottly.x += (step_to_speed * ImGui::GetIO().DeltaTime);
         sizeSmottly.y += (step_to_speed * ImGui::GetIO().DeltaTime);
         if (sizeSmottly.x >= MaxSizeWindow.x) {
@@ -1212,12 +1341,16 @@ struct GameUI {
         }
         ImGui::SetCursorPos(posCenter);
         if (ImGui::BeginChild("text_message", sizeSmottly, ImGuiChildFlags_FrameStyle)) {
+            ImGui::SetCursorPos(ImVec2(
+                (MaxSizeWindow.x - ImGui::CalcTextSize(text.c_str()).x) / 2,
+                (MaxSizeWindow.y - ImGui::CalcTextSize(text.c_str()).y) / 2
+            ));
             ImGui::Text(text.c_str());
             ImGui::EndChild();
         }
         if(bCurrentWindowShowFlag)
         {
-            d64DelayToClearIn += 1;
+            d64DelayToClearIn += 2;
             if (d64DelayToClearIn >= d64DelayToClear) {
                 sizeSmottly = { 10,10 };
                 d64DelayToClearIn = 0.0L;
@@ -1426,10 +1559,6 @@ struct GamepadButtons {
             ImGui::GetColorU32(v ? RGBAtoIv4(col) : RGBAtoIv4(ImVec4(12, 34, 133, 255)))
         );
         drawList->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), gamepad_button_name.c_str());
-
-        // Положение стика (предполагаем, что v - нормализованное значение [-1, 1])
-
-        // Перемещаем курсор для следующих элементов ImGui
         ImGui::Dummy(canvasSize);
         ImGui::EndGroup();
 
@@ -1438,11 +1567,11 @@ struct GamepadButtons {
 };
 struct PahomEngineStruct {
     //
-    std::string sBuild = "0.8.2";
-    std::string sBuildGame = "0.8.2";
+    std::string sBuild = "0.8.3 (pre-release)";
+    std::string sBuildGame = "0.8.3 (pre-release)";
     //
-    std::wstring sWBuild = L"0.8.2";
-    std::wstring sWBuildGame = L"0.8.2";
+    std::wstring sWBuild = L"0.8.3 (pre-release)";
+    std::wstring sWBuildGame = L"0.8.3 (pre-release)";
     //
     bool CVsync = true;
     uint64_t fCPoint = 0;
@@ -1536,7 +1665,10 @@ struct PahomEngineStruct {
         template <class... Tm>
         void print(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
           std::cout<< _STD vformat(_Fmt.get(), _STD make_format_args(_Args...));
-           // std::fwrite(_STD vformat(_Fmt.get(), _STD make_format_args(_Args...)));
+        }
+        template <typename AllocatorName, typename MemoryObject>
+        void alloc_ptr() {
+            std::unique_ptr<AllocatorName> MemoryObject = std::make_unique<AllocatorName>();
         }
     };
     std::unique_ptr<bufferio> cio = std::make_unique<bufferio>();
@@ -1583,6 +1715,13 @@ struct PahomEngineStruct {
     float fScoreCount = 0.000f;
     float fBreadPosX = 0;
     float fBreadPosY = 400;
+    int64_t i64BreadSize[2] = { 64,64 };
+    int64_t i64PahomSize[2] = { 128,128 };
+    ImVec2 WindowSize = { cast->cast_all<float>(i64WindowSize[0]),cast->cast_all<float>(i64WindowSize[1]) };
+    ImVec2 PahomPos   = { cast->cast_all<float>(fPahomPosX)      ,cast->cast_all<float>(fPahomPosY)       };
+    ImVec2 BreadPos   = { cast->cast_all<float>(fBreadPosX)      ,cast->cast_all<float>(fBreadPosY)       };
+    ImVec2 BreadSize  = { cast->cast_all<float>(i64BreadSize[0]) ,cast->cast_all<float>(i64BreadSize[1])  };
+    ImVec2 PahomSize  = { cast->cast_all<float>(i64PahomSize[0]) ,cast->cast_all<float>(i64PahomSize[1])  };
     bool bLoadingFrame = true; bool bLoadingFrameOK = false;
     bool bControlsIsGamepad = false;
     bool bControlsIsKeyboard = false;
@@ -1606,11 +1745,10 @@ struct PahomEngineStruct {
     bool bKefir = false;
     int64_t i64RandBoost = 0;
     int64_t i64ValuesRands[4] = { 50 , 100, 256, 777 };
+    HANDLE hConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
     bool GetGamepadKey(int64_t iKey, int iMaxDelay);
-    int64_t i64BreadSize[2] = { 64,64 };
-    int64_t i64PahomSize[2] = { 128,128 };
     void Text(ImVec4 col, std::string text);
-    void log(std::string text);
+    void log(std::string text, int iLogTypeFlags);
     void Tbuffer();
     void logo();
     void progress_bar(float fragtion);
@@ -1653,12 +1791,57 @@ void PahomEngineStruct::clearPos() {
     fBreadPosX = 0;
     fBreadPosY = 0;
 }
-void  PahomEngineStruct::log(std::string text) {
+enum type {
+    WARN = 0,
+    INFO = 1,
+    ERR = 2,
+    DEBUG = 3,
+};
+void  PahomEngineStruct::log(std::string text,int iLogTypeFlags = 1) {
+    auto now = std::chrono::system_clock::now();
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+    std::tm* local_tm = std::localtime(&t);
+    bLogEnabled = true;
+    std::vector<std::string> typeStr = {
+        "WARN",
+        "INFO",
+        "ERR",
+        "DEBUG"
+    };
+    std::string typeCurrent;
+    typeCurrent = (iLogTypeFlags == type::WARN ? typeStr[0] : typeStr[iLogTypeFlags]);
+    typeCurrent = (iLogTypeFlags == type::INFO ? typeStr[1] : typeStr[iLogTypeFlags]);
+    typeCurrent = (iLogTypeFlags == type::ERR  ? typeStr[2] : typeStr[iLogTypeFlags]);
+    typeCurrent = (iLogTypeFlags == type::DEBUG ? typeStr[3] : typeStr[iLogTypeFlags]);
+    ImVec4 Time = {
+       static_cast<float>(local_tm->tm_hour),      // 0–23
+       static_cast<float>(local_tm->tm_min),       // 0–59
+       static_cast<float>(local_tm->tm_sec),       // 0–59
+       static_cast<float>(now.time_since_epoch().count() % 10000000 / 10000.0f) // миллисекунды (примерно)
+    };
     if (bLogEnabled) {
-        std::cout << " [PahomEngine::" << text << std::endl;
+        static int32_t i32LogColorText = 14;
+        switch (iLogTypeFlags) {
+        case type::WARN: 
+            i32LogColorText = 14;
+            break;
+        case type::INFO:
+            i32LogColorText = 15;
+            break;
+        case type::ERR:
+            i32LogColorText = 12;
+            break;
+        case type::DEBUG:
+            i32LogColorText = 8;
+            break;
+        
+        }
+        SetConsoleTextAttribute(hConsoleHandle, i32LogColorText);
+        std::cout << std::format(" {}::({}:{}:{}) ", typeCurrent, Time.x, Time.y, Time.z) << " [PahomEngine] " << text << std::endl;
+        SetConsoleTextAttribute(hConsoleHandle, 15);
     }
     else {
-        Event.WriteLog(text);
+        Event.WriteLog(std::format(" {}::({}:{}:{}) {}", typeCurrent, Time.x, Time.y, Time.z, text));
     }
 }
 void  PahomEngineStruct::Text(ImVec4 col, std::string text) {
@@ -1888,7 +2071,7 @@ bool PahomEngineStruct::StyleLoad() {
     //colors[ImGuiCol_TabDimmed] = ImVec4(0.07f, 0.10f, 0.15f, 0.97f);
   //  colors[ImGuiCol_TabDimmedSelected] = ImVec4(0.14f, 0.26f, 0.42f, 1.00f);
     //colors[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0.50f, 0.50f, 0.50f, 0.00f);
-    colors[ImGuiCol_PlotLines] = RGBA(5, 5, 7, 255);
+    colors[ImGuiCol_PlotLines] = RGBA(0, 235, 147, 255);
     colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
     colors[ImGuiCol_PlotHistogram] = RGBA(35, 35, 55, 255);
     colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);

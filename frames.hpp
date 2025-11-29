@@ -469,7 +469,7 @@ struct GameFrames {
             }
             cl_timer = 0;
         }
-        ImGui::TextColored(PahomEngine->RGBA(r_color, g_color, b_color, 255), "SWEET BREADS v %s)", PahomEngine->sBuildGame.c_str());
+        ImGui::TextColored(PahomEngine->RGBA(r_color, g_color, b_color, 255), "SWEET BREADS)");
 
     }
     void EventBreadRain() {
@@ -565,20 +565,93 @@ struct GameFrames {
             }
             bInitialized = true;
         }
-        
+        ImGui::Begin("PERFOMANCE");
+        static float fps_values[120] = {};
+        static int offset = 0;
+
+        float fps = ImGui::GetIO().Framerate;  // ← точнее, чем 1/DeltaTime
+
+        // Записываем
+        fps_values[offset] = fps;
+        offset = (offset + 1) % 120;
+
+        // Рисуем
+        char overlay[32];
+        static std::string sLogData;
+        static int32_t iLogType = 0;
+        sprintf(overlay, "%.0f FPS", fps);
+
+        ImGui::PlotLines("##fps_plot", fps_values, 120, offset, overlay,
+            0.0f, 1000.0f, ImVec2(0, 80));
+        ImGui::Checkbox("unlock fps", &PahomEngine->CVsync); \
+            ImGui::InputText("LogTest", &sLogData);
+        if(ImGui::Button("WARN")) {
+            iLogType = 0;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("INFO")) {
+            iLogType = 1;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("ERR")) {
+            iLogType = 2;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("DEBUG")) {
+            iLogType = 3;
+        }
+        if (ImGui::Button("Send")) {
+            PahomEngine->log(sLogData, iLogType);
+        }
+      /*  ImGui::SpinnerBar("CPU", PahomEngine->Mem.GetCpuUsage(), 20, 3, ImGui::GetColorU32(PahomEngine->RGBA(255, 0, 160, 255)));
+        std::vector<ImVec2> ImVec2ImageArray;
+        static float fImageCenterX = (ImGui::GetWindowSize().x - 128) / 2;
+        static float fImageCenterY = (ImGui::GetWindowSize().y - 128) / 2;
+        static int32_t i32TextureFilled = 0;
+        static int count = 20;
+        static float fRadius = 180;
+        for (int x = i32TextureFilled; x < 20; x++) {
+            ImVec2ImageArray.clear();
+            for (int i = 0; i < count; ++i) {
+                float fAngle = 2.0f * IM_PI * i / count;
+                float fix = fImageCenterX + fRadius * cosf(fAngle);
+                float fiy = fImageCenterY + fRadius * sinf(fAngle);
+                ImVec2ImageArray.emplace_back(fix - 64, fiy - 64);
+                ImGui::SetCursorPos(ImVec2(fix, fiy));
+                ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[10]), ImVec2(128, 128));
+            }
+        }
+        */
+       // fRadius += 3.14 * ImGui::GetIO().DeltaTime;
+       /// ImGui::SliderAngle("fRadius", &fRadius);
+        ImGui::End();
         PahomEngine->GamepadUI->GamepadButtonRender("A",PahomEngine->RGBA(135,125,0,255));
         // --- Центрирование окна ---
         ImVec2 viewportCenter = ImGui::GetMainViewport()->GetCenter();
         ImGui::SetNextWindowPos(ImVec2(viewportCenter.x - 200, viewportCenter.y - 200), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_Always);
-
+       
         if (ImGui::BeginChild("PahomEngine - Editor", ImVec2(400, 400), ImGuiChildFlags_Border)) {
             if (ImGui::Button("Divide Test Multithread")) {
-                PahomEngine->Bench64ptr->mt_math_flow();
+                //PahomEngine->Bench64ptr->mt_math_flow();
+              //PahomEngine->audio.audioDevice.getPitch();
+               
+            }
+            static ImVec2 minRect = { 0,0 }, maxRect = {0,0};
+            static int32_t i32Select = 0;
+            PahomEngine->Text("rect : {}x{} {}x{}", minRect.x, minRect.y, maxRect.x, maxRect.y);
+            PahomEngine->Text("Selected 1:{} 2:{} 3:{} 4:{}", i32Select ? "[O]": "[*]", i32Select ==2  ? "[O]" : "[*]", i32Select == 3 ? "[O]" : "[*]", i32Select == 4 ? "[O]" : "[*]");
+           
+            if (ImGui::IsKeyPressed(ImGuiKey_MouseRight)) {
+                i32Select = 0;
+                maxRect = { 0,0 };
+                minRect = { 0,0 };
             }
             ImGui::EndChild();
         }
     }
+    
 };
 auto Game = std::make_unique<GameFrames>();
+//PahomEngine->cio->alloc_ptr<GameFrames, Game>(Game);
 
