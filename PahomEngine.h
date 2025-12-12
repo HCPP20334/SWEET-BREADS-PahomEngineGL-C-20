@@ -8,7 +8,7 @@
 #endif
 #define PAHOM_ENGINE_ID (int64_t)0x17
 #include <windows.h>
-#include <GL/GL.h>
+#include "render.hpp"
 #include <string>
 //#include "JoyStick.h"
 #include <iostream>
@@ -40,6 +40,8 @@
 #define _CRT_INTERNAL_NONSTDC_NAMES 1
 #include <stdio.h>
 #include <pdh.h>
+#include <dwmapi.h>
+#pragma comment(lib,"dwmapi.lib")
 //
 #if !_HAS_CXX20
 #error "PahomEngine требует C++20 или новее. Включи флаг -std=c++20 (g++) или /std:c++20 (MSVC)"
@@ -124,9 +126,9 @@ namespace ImGui {
         // Colors
         ImU32 color_bg_on = ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
         ImU32 color_bg_off = ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-        ImU32 color_knob = *v ? ImGui::GetColorU32(ImVec4(0.34f, 0.06f, 0.98f, 1.00f)) :
+        ImU32 color_knob = *v ? ImGui::GetColorU32(ImVec4(0.34f, 150, 0.98f, 1.00f)) :
             ImGui::GetColorU32(ImVec4(0.36f, 0.36f, 0.36f, 1.0f));
-        ImU32 glow_color = ImGui::GetColorU32(ImVec4(0.34f, 0.06f, 0.98f, 0.3f)); // ���� ��������
+        ImU32 glow_color = ImGui::GetColorU32(ImVec4(0.34f, 150, 0.98f, 0.3f)); // ���� ��������
         ImU32 border_color = ImGui::GetColorU32(ImGuiCol_Border);
 
         ImGui::InvisibleButton(label, ImVec2(width, height));
@@ -164,7 +166,7 @@ namespace ImGui {
                 draw_list->AddCircle(
                     knob_pos,
                     radius,
-                    ImGui::GetColorU32(ImVec4(0.34f, 0.06f, 0.98f, alpha)),
+                    ImGui::GetColorU32(ImVec4(0.34f, 150, 0.98f, alpha)),
                     0, // �������� (0 = �������������)
                     2.0f // ������� �����
                 );
@@ -215,36 +217,24 @@ namespace ImGui {
     }
     bool SpinnerBar(const char* label, float progress, float radius = 12.0f, int thickness = 4, ImU32 color = IM_COL32(255, 255, 255, 200))
     {
+
         ImGuiWindow* window = GetCurrentWindow();
         if (window->SkipItems) return false;
-
         ImGuiContext& g = *GImGui;
         const ImGuiStyle& style = g.Style;
         const ImGuiID id = window->GetID(label);
-
         ImVec2 pos = window->DC.CursorPos;
         ImVec2 size(radius * 2, radius * 2 + style.FramePadding.y * 2);
-
         const ImRect bb(pos, ImVec2(pos.x + size.x,pos.y + size.y));
         ItemSize(bb, style.FramePadding.y);
         if (!ItemAdd(bb, id)) return false;
-
         const ImVec2 center = ImVec2(pos.x + radius, pos.y + radius + style.FramePadding.y);
-
         ImDrawList* draw_list = window->DrawList;
-
-        // Фон (опционально — серый круг)
-        // draw_list->AddCircleFilled(center, radius, IM_COL32(40, 40, 40, 100), 64);
-
-        const float start_angle = -IM_PI / 2.0f;  // с 12 часов
-        const float end_angle = start_angle + IM_PI * 2.0f * progress; // по прогрессу
-
-        // Плавная анимация "хвоста" (чтобы не обрывалось резко)
+        const float start_angle = -IM_PI / 2.0f;
+        const float end_angle = start_angle + IM_PI * 2.0f * progress;
         const float anim_speed = 2.5f;
-        const float tail_length = 0.3f; // 30% круга
+        const float tail_length = 0.3f;
         float anim_offset = ImSin(g.Time * anim_speed) * tail_length * IM_PI * 2.0f;
-
-        // Основная дуга
         draw_list->PathClear();
         draw_list->PathArcTo(center, radius, start_angle + anim_offset, end_angle + anim_offset, 64);
         draw_list->PathStroke(color, false, thickness);
@@ -254,10 +244,6 @@ namespace ImGui {
                 center.x - text_size.x * 0.5f,
                 center.y - text_size.y * 0.5f
             );
-
-            // Тень (по желанию — красивее)
-            draw_list->AddText(ImVec2(text_pos.x + ImVec2(1, 1).x, text_pos.y + ImVec2(1, 1).y), IM_COL32(0, 0, 0, 100), label);
-            // Основной текст
             draw_list->AddText(text_pos, IM_COL32(255, 255, 255, 255), label);
         }
         return true;
@@ -335,7 +321,29 @@ namespace ImGui {
 
         return pressed;
     }
+    void ImLine(float size_x, float thickness,const ImVec4 &col) {
+        ImVec2 p_min = ImGui::GetCursorScreenPos();
+        ImVec2 p_max = ImVec2(p_min.x + size_x, p_min.y + thickness);
+        ImGui::GetWindowDrawList()->AddRectFilled(p_min, p_max, ImGui::GetColorU32(col));
+        ImGui::Dummy(ImVec2(size_x, thickness));
+    }
+    void widget_log(std::string t) {
+        std::cout << t;
+    }
+    void RenderBlur(HWND hwnd) {
+        MARGINS margins = { -1 };
+        HRESULT hr = DwmExtendFrameIntoClientArea(hwnd, &margins);
 
+        if (FAILED(hr)) { // Используем FAILED() для корректной проверки HRESULT на ошибку
+            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 13);
+            // Выводим код ошибки в шестнадцатеричном формате
+            widget_log(std::format(" [PahomEngine](dwm) AeroBlur Error. HRESULT: 0x{:X}\n", (unsigned int)hr));
+            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+        }
+        else {
+            widget_log(std::format(" [PahomEngine](dwm) AeroBlur setup OK. HRESULT: 0x{:X}\n", (unsigned int)hr));
+        }
+    }
 }
 ImVec4 RGBAtoIV4(float r, float g, float b, float a) {
     return ImVec4{
@@ -520,6 +528,8 @@ struct KurlikAUDIO {
                                  "assets/audio/sound_game.wav",
                                  "assets/audio/click.wav"
     };
+    std::vector<std::string> musicFiles;
+    bool FilesScanned = false;
     void play(int64_t i);
     void play2(int64_t i);
     void play3(int64_t i);
@@ -532,6 +542,8 @@ struct KurlikAUDIO {
     float convertToMinutes();
     int64_t idx = 0;
     float masterVolume = 0.02f;
+    float masterVolumeLast = 0.0f;
+    float fMusicPlayerVolumeOffset = 0.4f;
     void pause();
     Audio::Sound audioDevice,audioDevice2,audioDevice3;
     int64_t i64CurrentTimeLine = 0;
@@ -561,8 +573,106 @@ struct KurlikAUDIO {
         }
         fileAssets.close();
     }
+    void ScanFiles(const std::string& directory = "musics") {
+        static int64_t i64FileCount = 0;
+        musicFiles.clear(); // Очищаем плейлист
+        try {
+            // Сканируем директорию
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(
+                directory, std::filesystem::directory_options::skip_permission_denied)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".mp3") {
+                    musicFiles.push_back(entry.path().string());
+                    std::cout << __TIME__ << " Found " << i64FileCount << " File: " << musicFiles[i64FileCount] << std::endl;
+                    i64FileCount++;
+                }
+            }
+            FilesScanned = true;
+            i64FileCount = 0;
+            // Получаем длительности для всех файлов
+
+        }
+        catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "Filesystem Error: " << e.what() << std::endl;
+            FilesScanned = false;
+        }
+    }
     std::unique_ptr<time> audioTime = std::make_unique<time>();
     std::string sLastAudioFile[3] = {"0","0","0"};
+    void music_player(int64_t i) {
+        //  PlaySoundA(file.c_str(), NULL, 1);
+        idx = i;
+        audioDevice.loadSound(musicFiles[idx]);
+        audioDevice.play();
+        audioDevice.setVolume(isAudioMuted ? 0 : masterVolume);
+        isDeviceActive = audioDevice.isPlaying();
+    }
+    void Device(int64_t idx_device, bool isPlay) {
+        switch (idx_device) {
+        case 0:
+            if (audioDevice) {
+                if (isPlay) {
+                    audioDevice.play();
+                }
+                else {
+                    audioDevice.pause();
+                }
+            }
+            break;
+        case 1:
+            if (audioDevice2) {
+                if (isPlay) {
+                    audioDevice2.play();
+                }
+                else {
+                    audioDevice2.pause();
+                }
+            }
+            break;
+        case 2:
+            if (audioDevice3) {
+                if (isPlay) {
+                    audioDevice3.play();
+                }
+                else {
+                    audioDevice3.pause();
+                }
+            }
+            break;
+        }
+       
+
+    }
+    bool loadFileToWav(std::string file, int64_t idx_device) {
+        switch (idx_device) {
+        case 0:
+            if (audioDevice) {
+                audioDevice.loadSound(file);
+                return true;
+            }
+            else {
+                return false;
+            }
+            break;
+        case 1:
+            if (audioDevice2) {
+                audioDevice2.loadSound(file);
+                return true;
+            }
+            else {
+                return false;
+            }
+            break;
+        case 2:
+            if (audioDevice3) {
+                audioDevice3.loadSound(file);
+                return true;
+            }
+            else {
+                return false;
+            }
+            break;
+        }
+    }
 };
 void KurlikAUDIO::Mute() {
     if (audioDevice) {
@@ -770,21 +880,22 @@ struct STRINGSDATA {
 // 
 
 
-#define engine_bulid std::wstring(L"0.8.3 (pre-release)");
+#define engine_bulid std::wstring(L"0.8.5a1f (pre-release)");
 
 //
 struct ASSETSDATA {
-    std::string asset[11] = { "assets/logo.png",   //0
+    std::string asset[12] = { "assets/logo.png",   //0
                              "assets/back.jpg",   //1
                              "assets/bread.png",  //2
                              "assets/pahom.png",  //3
                              "assets/pahom2.png",  //4
-                             "assets/panel.png",
-                             "assets/777.png",
-                             "assets/vilka.png",
-                             "assets/kefir.png",
+                             "assets/panel.png",//5
+                             "assets/777.png",//6
+                             "assets/vilka.png",//7
+                             "assets/kefir.png",//8
                              "assets/gortany.png",
-                             "assets/cryptypahom.png"
+                             "assets/cryptypahom.png",
+                             "assets/PEngine.png"
     }; //5
 
 
@@ -826,6 +937,11 @@ struct KEYMAPDATA {
     //
  
 };
+struct dataTime {
+    DWORD x, y;
+    constexpr dataTime() : x(0L), y(0L) {}
+    constexpr dataTime(DWORD _x, DWORD _y) : x(_x), y(_y) {}
+};
 struct MEMORYDATA {
     int64_t i64MemoryTotal = 0;
     int64_t i64MemoryFree  = 0;
@@ -834,7 +950,7 @@ struct MEMORYDATA {
     MEMORYSTATUS MemoryPtr;
     void getData(int64_t* mem,int64_t idx_data){
         memset(&MemoryPtr, 0, sizeof(MemoryPtr));
-        ::GlobalMemoryStatus(&MemoryPtr);
+        ::GlobalMemoryStatus(&MemoryPtr);// GlobalMemoryStatusEx fuck you asshole
         switch (idx_data) {
         case 0:
             *mem = (MemoryPtr.dwTotalPhys - MemoryPtr.dwAvailPhys) / 1024 / 1024 / 1024; // ��� �������������� ������
@@ -881,25 +997,18 @@ struct MEMORYDATA {
         return result;
     }
 
-
-    double GetCpuUsage() {
-        static PDH_HQUERY   cpuQuery;
-        static PDH_HCOUNTER cpuTotal;
-        static bool first = true;
-
-        if (first) {
-            PdhOpenQuery(NULL, 0, &cpuQuery);
-            PdhAddCounter(cpuQuery, L"\\Processor(_Total)\\% Processor Time", NULL, &cpuTotal);
-            first = false;
-            PdhCollectQueryData(cpuQuery);
-            Sleep(100);
-        }
-
-        PdhCollectQueryData(cpuQuery);
-        PDH_FMT_COUNTERVALUE counterVal;
-        PdhGetFormattedCounterValue(cpuTotal, PDH_FMT_DOUBLE, NULL, &counterVal);
-        return counterVal.doubleValue;
+    void Mem_log(std::string text) {
+        std::cout << text << std::endl;
     }
+    std::string GetProcessName() {
+        HANDLE hProcess = GetCurrentProcess();
+        char processName[MAX_PATH];
+        GetModuleFileNameExA(hProcess, NULL, processName, MAX_PATH);
+        return std::format("{}", processName);
+    }
+    
+
+    
 };
 auto ptrMemory = std::make_unique<MEMORYDATA>();
 struct GameEvent {
@@ -988,6 +1097,7 @@ struct GameEvent {
     bool bScreamEvent = false;
     bool bScreamEventBackground = false;
     bool bDemoPlay = false;
+    bool bKefirFriend = false;
     int32_t i32ReverseImage = -1;
     bool AutoScaleImage = false;
 };
@@ -1565,13 +1675,14 @@ struct GamepadButtons {
     }
    
 };
+
 struct PahomEngineStruct {
     //
-    std::string sBuild = "0.8.3 (pre-release)";
-    std::string sBuildGame = "0.8.3 (pre-release)";
+    std::string sBuild = "0.8.5 (pre-release)";
+    std::string sBuildGame = "0.8.5 (pre-release)";
     //
-    std::wstring sWBuild = L"0.8.3 (pre-release)";
-    std::wstring sWBuildGame = L"0.8.3 (pre-release)";
+    std::wstring sWBuild = L"0.8.5 (pre-release)";
+    std::wstring sWBuildGame = L"0.8.5 (pre-release)";
     //
     bool CVsync = true;
     uint64_t fCPoint = 0;
@@ -1582,7 +1693,98 @@ struct PahomEngineStruct {
     std::unique_ptr<GameUI> UI = std::make_unique<GameUI>();
     std::unique_ptr<GamepadButtons> GamepadUI = std::make_unique<GamepadButtons>();
     std::random_device rd;
-    
+
+    //
+
+    bool bIsRandomEngineUsed = true;
+
+    //
+    struct GameSettingsOffsets {
+
+        std::string sSettingsBufferString,
+            volume_atr = "volume=",
+            cpu_atr = "cpu_delay=";
+        std::string controls_atr[2] = {"bind_key_left=","bind_key_right="};
+        std::string glversion[2] = { "gl_major=" ,"gl_minor=" };
+        int8_t u8BindKeyRight = 'D', u8BindKeyLeft = 'A';
+        float fMasterVolume = 0;
+        int64_t i64CPUDelay = 0;
+        int minor_gl = 0, major_gl = 0;
+        bool bUseCustomRender = false;
+        bool bFlagVsync = false, bFlagRandomEngine = false;
+        bool bKeyLDetected = false, bKeyRDetected = false;
+        bool bRenderBlur = false;
+        bool bFlagEnableAnimationToImageFadeInOut = false;
+        void ParseConfig() {
+            std::ifstream PahomEngineSettings("PahomEngine.cfg");
+            if (PahomEngineSettings.is_open()) {
+                while (std::getline(PahomEngineSettings, sSettingsBufferString)) {
+                    if (sSettingsBufferString == "vsync=true") {
+                        bFlagVsync = true;
+                        //Pengine.log("PESettings:: Применен vsync=true", 1);
+                    }
+                    if (sSettingsBufferString == "vsync=false") {
+                        bFlagVsync = false;
+                        //Pengine.log("PESettings:: Применен vsync=false", 1);
+                    }
+                    if (sSettingsBufferString == "random_engine=true") {
+                        bFlagRandomEngine = true;
+                       // Pengine.log("PESettings:: Применен random_engine=true", 1);
+                    }
+                    if (sSettingsBufferString == "random_engine=false") {
+                        bFlagRandomEngine = false;
+                        //Pengine.log("PESettings:: Применен random_engine=false", 1);
+                    }
+                    if (sSettingsBufferString.rfind(volume_atr, 0) == 0) {
+                        fMasterVolume = stof(sSettingsBufferString.substr(volume_atr.length()));
+                    }
+                    if (sSettingsBufferString.rfind(cpu_atr, 0) == 0) {
+                        i64CPUDelay = stoll(sSettingsBufferString.substr(cpu_atr.length()));
+                    }
+                    if (sSettingsBufferString.rfind(controls_atr[0], 0) == 0) {
+                        bKeyLDetected = true;
+                        u8BindKeyLeft = static_cast<int8_t>(stoi(sSettingsBufferString.substr(controls_atr[0].length())));
+                    }
+                    
+                    if (sSettingsBufferString.rfind(controls_atr[1], 0) == 0) {
+                        bKeyRDetected = true;
+                        u8BindKeyRight = static_cast<int8_t>(stoi(sSettingsBufferString.substr(controls_atr[1].length())));
+                    }
+                    if (sSettingsBufferString == "render_blur=true") {
+                        bRenderBlur = true;
+                    }
+                    if (sSettingsBufferString == "render_blur=false") {
+                        bRenderBlur = false;
+                    }
+                    if (sSettingsBufferString == "EnableAnimationToImageFadeInOut=true") {
+                        bFlagEnableAnimationToImageFadeInOut = true;
+                    }
+                    if (sSettingsBufferString == "EnableAnimationToImageFadeInOut=false") {
+                        bFlagEnableAnimationToImageFadeInOut = false;
+                    }
+                    if (sSettingsBufferString == "use_custom_render=true") {
+                        bUseCustomRender = true;
+                    }
+                    if (sSettingsBufferString == "use_custom_render=false") {
+                        bUseCustomRender = false;
+                    }
+                    if (sSettingsBufferString.rfind(glversion[0], 0) == 0) {
+                        major_gl = (stoi(sSettingsBufferString.substr(glversion[0].length())));
+                    }
+                    if (sSettingsBufferString.rfind(glversion[1], 0) == 0) {
+                        minor_gl = (stoi(sSettingsBufferString.substr(glversion[1].length())));
+                    }
+                }
+            }
+            PahomEngineSettings.close();
+        }
+        void Save(std::string string_param) {
+            std::ofstream PahomEngineSettings("PahomEngine.cfg");
+            PahomEngineSettings << string_param << std::endl;
+            PahomEngineSettings.close();
+        }
+    };
+    std::unique_ptr<GameSettingsOffsets> PESettings = std::make_unique<GameSettingsOffsets>();
     struct mathValues {
         template <typename Tm>
         Tm minv(Tm a, Tm b) {
@@ -1632,21 +1834,37 @@ struct PahomEngineStruct {
         
         template <typename Tm>
         Tm random(Tm value_max, bool bIsUseRandomDevice = false) {
-            if(!bIsUseRandomDevice)
+            PahomEngineStruct Engine;
+            if(Engine.bIsRandomEngineUsed)
             {
-                std::random_device rd;
-                std::mt19937 gen(rd());
-                if constexpr (std::is_floating_point_v<Tm>) {
-                    std::uniform_real_distribution<Tm> dist(0, value_max);
-                    return dist(gen);
+                if (!bIsUseRandomDevice)
+                {
+                    std::random_device rd;
+                    std::mt19937 gen(rd());
+                    if constexpr (std::is_floating_point_v<Tm>) {
+                        std::uniform_real_distribution<Tm> dist(0, value_max);
+                        return dist(gen);
+                    }
+                    else {
+                        std::uniform_int_distribution<Tm> dist(0, value_max);
+                        return dist(gen);
+                    }
                 }
                 else {
-                    std::uniform_int_distribution<Tm> dist(0, value_max);
-                    return dist(gen);
+                    std::mt19937 gen(Engine.rd());
+                    if constexpr (std::is_floating_point_v<Tm>) {
+                        std::uniform_real_distribution<Tm> dist(0, value_max);
+                        return dist(gen);
+                    }
+                    else {
+                        std::uniform_int_distribution<Tm> dist(0, value_max);
+                        return dist(gen);
+                    }
+
                 }
             }
             else {
-                return static_cast<Tm>(rand() % static_cast<int>(value_max));
+                return static_cast<Tm>(rand() % (int)value_max);
             }
         }
     };
@@ -1654,7 +1872,12 @@ struct PahomEngineStruct {
         bool bUsedStaticCast = false;
         template <typename Tm>
         Tm cast_all(Tm type) {
-            return bUsedStaticCast ? static_cast<Tm>(type) : (Tm)(type);
+            if (std::is_arithmetic_v<Tm>) {
+                return bUsedStaticCast ? static_cast<Tm>(type) : (Tm)(type);
+            }
+            else {
+                std::cout << ("cast->cast_all<error>(type)") << std::endl;
+            }
         }
         template <typename Tm>
         Tm cast_to_string(Tm type) {
@@ -1671,11 +1894,49 @@ struct PahomEngineStruct {
             std::unique_ptr<AllocatorName> MemoryObject = std::make_unique<AllocatorName>();
         }
     };
-    std::unique_ptr<bufferio> cio = std::make_unique<bufferio>();
+    struct gpuRenderOGL {
+        bool bIsUsedGLCustom = false;
+        struct apiVersion {
+            int minor = 2;
+            int major = 3;
+            std::string strVersion[4] = {
+                "1.0",
+                "2.0",
+                "3.0",
+                "4.0"
+            };
+            void setVersion(int64_t idx) {
+                if (strVersion[idx] == "1.0") {
+                    major = 1;
+                    minor = 0;
+                }
+                if (strVersion[idx] == "2.0") {
+                    major = 2;
+                    minor = 0;
+                }
+                if (strVersion[idx] == "3.0") {
+                    major = 3;
+                    minor = 0;
+                }
+                if (strVersion[idx] == "4.0") {
+                    major = 4;
+                    minor = 0;
+                }
+            }
+        };
+
+        apiVersion gl_ver;
+        
+    };
+    std::unique_ptr<GLM> ogl = std::make_unique<GLM>();
+    std::unique_ptr<bufferio>   cio  = std::make_unique<bufferio>();
     std::unique_ptr<castValues> cast = std::make_unique<castValues>();
     std::unique_ptr<mathValues> math = std::make_unique<mathValues>();
+    std::unique_ptr<gpuRenderOGL> Render = std::make_unique<gpuRenderOGL>();
     bool StyleLoad();
+    bool StyleLoadBlur();
     ImVec4 RGBA(float r, float g, float b, float a);
+    ImVec4 RGBA(ImVec4 col);
     void setTextCenter(const char* text);
     void setItemCenterX(float x);
     void setItemCenter(ImVec2 Size);
@@ -1728,6 +1989,7 @@ struct PahomEngineStruct {
     bool bDebug = true;
     bool bFullscreen = false;
     bool bGameOver = false;
+    
     int64_t i64CPUDelay = 2;
     // main flags
     bool bStartGame = false;
@@ -1775,7 +2037,6 @@ struct PahomEngineStruct {
     template <class... Tm>
     void TextColored(ImVec4 col,const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
         ImGui::TextColored(col,_STD vformat(_Fmt.get(), _STD make_format_args(_Args...)).c_str());
-        //_STD vformat_to(_Fmt.get(), _STD make_format_args(_Args...));
     }
    
 };
@@ -1858,10 +2119,15 @@ bool  PahomEngineStruct::GetGamepadKey(int64_t iKey,int iMaxDelay) {
     }
 }
 int64_t PahomEngineStruct::rand64(int64_t in_v) {
-    std::random_device rd; // ������������� ������
-    std::mt19937 gen(rd()); // ������������� ����������
-    std::uniform_int_distribution<int64_t> dist(2, in_v);//���������� ���� ��� ���������
-    return dist(gen); //��������� �����
+    if (bIsRandomEngineUsed) {
+        std::random_device rd; // ������������� ������
+        std::mt19937 gen(rd()); // ������������� ����������
+        std::uniform_int_distribution<int64_t> dist(2, in_v);//���������� ���� ��� ���������
+        return dist(gen); //��������� �����
+    }
+    else {
+        return rand() % in_v;
+    }
 }
 float PahomEngineStruct::randfloat(float in_v) {
     std::random_device rd; // ������������� ������
@@ -1950,6 +2216,16 @@ ImVec4  PahomEngineStruct::RGBA(float r, float g, float b, float a) {
         g / floatMaxColorRGBA,
         b / floatMaxColorRGBA,
         a / floatMaxColorRGBA,
+    };
+    return outRGBA;
+}
+ImVec4  PahomEngineStruct::RGBA(ImVec4 col) {
+    float floatMaxColorRGBA = 255.0f;
+    ImVec4 outRGBA{
+        col.x / floatMaxColorRGBA,
+        col.y / floatMaxColorRGBA,
+        col.z / floatMaxColorRGBA,
+        col.w / floatMaxColorRGBA,
     };
     return outRGBA;
 }
@@ -2079,7 +2355,7 @@ bool PahomEngineStruct::StyleLoad() {
     colors[ImGuiCol_TableBorderStrong] = ImVec4(0.31f, 0.31f, 0.35f, 1.00f);
     colors[ImGuiCol_TableBorderLight] = ImVec4(0.23f, 0.23f, 0.25f, 1.00f);
     colors[ImGuiCol_TableRowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
+    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.00f, 1.00f, 1.00f, 150);
     //colors[ImGuiCol_TextLink] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
     colors[ImGuiCol_TextSelectedBg] = ImVec4(1.00f, 1.00f, 1.00f, 0.04f);
     colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
@@ -2088,6 +2364,72 @@ bool PahomEngineStruct::StyleLoad() {
     colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
     style.FrameBorderSize = 1;
+
+    return true;
+}
+bool PahomEngineStruct::StyleLoadBlur() {
+   // ImGui::RenderBlur(GetActiveWindow());
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImVec4* colors = ImGui::GetStyle().Colors;
+    colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+    colors[ImGuiCol_WindowBg] = RGBA(7, 7, 9, 30);
+    colors[ImGuiCol_ChildBg] = RGBA(7, 7, 9, 130);
+    colors[ImGuiCol_PopupBg] = RGBA(5, 5, 7, 240);
+    colors[ImGuiCol_Border] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg] = RGBA(5, 5, 5, 200);
+    colors[ImGuiCol_FrameBgHovered] = RGBA(5, 5, 5, 255);
+    colors[ImGuiCol_FrameBgActive] = RGBA(5, 5, 5, 255);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.353f, 0.157f, 1.000f, 0.7f);
+    colors[ImGuiCol_TitleBgActive] = RGBA(135, 165, 255, 155);
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.11f, 0.11f, 0.11f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.53f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
+    colors[ImGuiCol_CheckMark] = ImVec4(0.50f, 0.60f, 1.0f, 1.0f);
+    colors[ImGuiCol_SliderGrab] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_SliderGrabActive] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_Button] = RGBA(7, 7, 9, 200);
+    colors[ImGuiCol_ButtonHovered] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    colors[ImGuiCol_Header] = RGBA(5, 5, 5, 255);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.15f, 0.15f, 0.15f, 0.80f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(1.00f, 1.00f, 1.00f, 0.04f);
+    colors[ImGuiCol_Separator] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_SeparatorHovered] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_SeparatorActive] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_ResizeGrip] = ImVec4(1.00f, 1.00f, 1.00f, 0.04f);
+    colors[ImGuiCol_ResizeGripHovered] = ImVec4(1.00f, 1.00f, 1.00f, 0.13f);
+    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.38f, 0.38f, 0.38f, 1.00f);
+    colors[ImGuiCol_TabHovered] = ImVec4(0.40f, 0.26f, 0.98f, 0.50f);
+    colors[ImGuiCol_Tab] = ImVec4(0.18f, 0.20f, 0.58f, 0.73f);
+    //colors[ImGuiCol_TabSelected] = ImVec4(0.29f, 0.20f, 0.68f, 1.00f);
+  ///  colors[ImGuiCol_TabSelectedOverline] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
+    //colors[ImGuiCol_TabDimmed] = ImVec4(0.07f, 0.10f, 0.15f, 0.97f);
+  //  colors[ImGuiCol_TabDimmedSelected] = ImVec4(0.14f, 0.26f, 0.42f, 1.00f);
+    //colors[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0.50f, 0.50f, 0.50f, 0.00f);
+    colors[ImGuiCol_PlotLines] = RGBA(0, 235, 147, 255);
+    colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
+    colors[ImGuiCol_PlotHistogram] = RGBA(35, 35, 55, 255);
+    colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
+    colors[ImGuiCol_TableHeaderBg] = ImVec4(0.19f, 0.19f, 0.20f, 1.00f);
+    colors[ImGuiCol_TableBorderStrong] = ImVec4(0.31f, 0.31f, 0.35f, 1.00f);
+    colors[ImGuiCol_TableBorderLight] = ImVec4(0.23f, 0.23f, 0.25f, 1.00f);
+    colors[ImGuiCol_TableRowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.00f, 1.00f, 1.00f, 150);
+    //colors[ImGuiCol_TextLink] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
+    colors[ImGuiCol_TextSelectedBg] = ImVec4(1.00f, 1.00f, 1.00f, 0.04f);
+    colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
+    // colors[ImGuiCol_NavCursor] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
+    colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
+    colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
+    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+    style.FrameBorderSize = 1;
+    style.FrameRounding = 30;
+    style.WindowRounding = 10;
 
     return true;
 }
@@ -2120,4 +2462,5 @@ namespace PE {
             return dist(gen);
         }
     }
-};
+    
+};////////////////////////////////
