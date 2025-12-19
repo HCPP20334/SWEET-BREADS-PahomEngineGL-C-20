@@ -130,10 +130,11 @@ void loadResulutionUI() {
 }
 struct SettingsUIStruct
 {
-    bool bAudio    = false;
-    bool bCPU      = true;
-    bool bGPU      = false;
-    bool bControls = false;
+    bool bAudio         = false;
+    bool bCPU           = true;
+    bool bGPU           = false;
+    bool bControls      = false;
+    bool bGamepadTestUI = false;
     // Add New Presets
     bool bWindowAppBlur = false;
 };
@@ -240,6 +241,7 @@ int main(int, char** argv)
         "Артём-е2п4ю - 2300р   ",
         "qxlydo - 2200         ",
         "Dan Yabl - 20USD      ",
+        "Kaban Films - 1103р   ",
         "Антон - 500р          ",
         "trqxxer - 400р        ",
         "redder - 400р         ",
@@ -383,7 +385,7 @@ int main(int, char** argv)
         static bool bSWWindow = false;
         // main frame
         ImGui::Begin("gameFrame", &bSWWindow, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
-        if (PahomEngine->getPressedKey(VK_ESCAPE, true)) {
+        /*if (PahomEngine->getPressedKey(VK_ESCAPE, true) && !SettingsUI->bGamepadTestUI) {
             PahomEngine->i64WindowSize[0] = 800;
             PahomEngine->i64WindowSize[1] = 600;
             PahomEngine->i64WindowSizeGL[0] = PahomEngine->i64WindowSize[0];
@@ -393,7 +395,7 @@ int main(int, char** argv)
             
             PahomEngine->log(std::format("set default 800x600 ->GL{}{}", PahomEngine->i64WindowSizeGL[0], PahomEngine->i64WindowSizeGL[1]),1);
             PahomEngine->bLogEnabled = false;
-        }
+        }*/
        // bSWWindow = (PahomEngine->getPressedKey(VK_LCONTROL, true) && PahomEngine->getPressedKey('R', true));
         // error ogl3 frame
         if (ImGui::BeginPopup("ogl3_error", ImGuiWindowFlags_AlwaysAutoResize)) {
@@ -411,9 +413,19 @@ int main(int, char** argv)
         //
         // Loader Textures
         static bool bMainTrackStarted = true;
+        static bool bMainIntroAudioLoaded = false, bMainIntroAudioLoadedReplayFlag = true;
         if (PahomEngine->bLoadingFrame) {
            
             b_FatalError = false;
+            if (!bMainIntroAudioLoaded) {
+                PahomEngine->audio.play(2);
+                bMainIntroAudioLoaded = true;
+            }
+            if (PahomEngine->audio.audioDevice && bMainIntroAudioLoadedReplayFlag) {
+                if (PahomEngine->audio.audioDevice.isEnd()) {
+                    PahomEngine->audio.audioDevice.replay();
+                }
+            }
             static int64_t tid = 0, i64FrameDelay = 0;
             if (bLoaderFiles) {
                 //PahomEngine->progress_bar(ftx);
@@ -421,7 +433,7 @@ int main(int, char** argv)
                     &PahomEngine->ImageData.TextureArray[tid],
                     &PahomEngine->ImageData.TextureX[tid],
                     &PahomEngine->ImageData.TextureY[tid],
-                    &PahomEngine->ImageData.TextureBufferArray[tid]))
+                    PahomEngine->ImageData.TextureBufferArray[tid]))
                 {
 
                     i64OGL3TxTotalSize += PahomEngine->img->GetImageSize(PahomEngine->ImageData.TextureX[tid], PahomEngine->ImageData.TextureY[tid]);
@@ -480,16 +492,7 @@ int main(int, char** argv)
                 }
                 PahomEngine->fillColorRGBA = PahomEngine->RGBA(133, 133, 133, fcl);
             }
-            Game->DrawParticles(ImVec2(io.MousePos.x, io.MousePos.y),
-                io.DeltaTime,
-                1040,                    // макс. частиц
-                0.04f,                  // частота
-                PahomEngine->RGBA(255, 68, 0, 255), // цвет
-                PahomEngine->randfloat(5), PahomEngine->randfloat(15),             // размер
-                1350.0f,                 // скорость
-                800.0f,                 // гравитация
-                1.8f                    // жизнь
-            );
+            
             
             
            
@@ -572,6 +575,10 @@ int main(int, char** argv)
             if (PahomEngine->getPressedKey('2',true)) {
                 ImGui::OpenPopup("#console");
             }
+            if (PahomEngine->getPressedKey('3', true)) {
+                Game->bDialog = true;
+            }
+            Game->TestDialogs();
             if (ImGui::BeginPopup("about", ImGuiWindowFlags_AlwaysAutoResize)) {
 
                 static int64_t i64ValueDiff = 0;
@@ -596,7 +603,8 @@ int main(int, char** argv)
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Diff_1")) {
-                    bMessageTest = true;
+                   
+                    ImGui::OpenPopup("dialog");
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Diff_2")) {
@@ -859,8 +867,6 @@ int main(int, char** argv)
                                 ImGui::ImLine(400, 3, PahomEngine->RGBA(35, 35, 55, 255));
                                 ImGui::SetCursorPosX(30);
                                 if (ImGui::BeginChild("slonik_player", { 400,100 }, ImGuiChildFlags_FrameStyle, ImGuiWindowFlags_NoTitleBar)) {
-                                   
-                                    
                                     static ImVec4 color = PahomEngine->RGBA(35, 35, 55, 255), colorSelected = PahomEngine->RGBA(255, 205, 0, 255);
                                     for (int iAudioList = 0; iAudioList < PahomEngine->audio.musicFiles.size(); iAudioList++) {
                                         PahomEngine->TextColored((iAudioSelected == iAudioList ? colorSelected : color), "({}). {}", iAudioList, PahomEngine->audio.musicFiles[iAudioList]);
@@ -878,6 +884,7 @@ int main(int, char** argv)
                                 ImGui::SetCursorPosX(30);
                                 if (ImGui::Button(bAudioState ? "Play" : "Pause",{64,32})) {
                                     if (PahomEngine->audio.audioDevice) {
+                                        PahomEngine->audio.isDeviceActive = !PahomEngine->audio.isDeviceActive;
                                         i32AudioStateInt32++;
                                         if (i32AudioStateInt32 > 1) { i32AudioStateInt32 = 0; }
                                         bAudioState = (i32AudioStateInt32 ? true : false);
@@ -1076,9 +1083,26 @@ int main(int, char** argv)
                                     }
                                 }
                                 ImGui::SetCursorPosX(30); ImGui::TextColored(PahomEngine->RGBA(133, 133, 133, 255), "Проверьте сразу. Внизу слайдер и нажатием\nвлево или в вправо с какой скорость будет двигаться");
-          
+                                if (SettingsUI->bGamepadTestUI) {
+                                    GamepadTestUI();
+                                }
                                 ImGui::SetCursorPosX(30); ImGui::ProgressBar(PahomEngine->cast->cast_all<float>(i64ControlTest) / 100.0f, ImVec2(250, 20), (std::to_string(PahomEngine->cast->cast_all<float>(i64ControlTest))).c_str());
                                 ImGui::SetCursorPosX(30); ImGui::Text("%lld/100:%lld", i64ControlTest, i64ControlTest / 100);
+                                ImGui::SetCursorPosX(30); PahomEngine->Text("Геймпад");
+                                ImGui::SetCursorPosX(30); ImGui::ImLine(400, 3, PahomEngine->RGBA(70, 0, 255, 255));
+                                ImGui::SetCursorPosX(30); ImGui::CustomToggle("GamepadAPI", &PahomEngine->bIsImGuiAGamepadAPIUsed);
+                                ImGui::SameLine();
+                                PahomEngine->TextColored((PahomEngine->bIsImGuiAGamepadAPIUsed ? PahomEngine->RGBA(0, 255, 160, 255) : PahomEngine->RGBA(255, 45, 180, 255)),
+                                    "{}",
+                                    (PahomEngine->bIsImGuiAGamepadAPIUsed ? "ImGuiGamepadAPI" : "JoyStickAPI"));
+                                if (SettingsUI->bGamepadTestUI) {
+                                    if (PahomEngine->getPressedKey(VK_ESCAPE, true)) {
+                                        SettingsUI->bGamepadTestUI = false;
+                                    }
+                                }
+                                ImGui::SetCursorPosX(30); if (ImGui::Button("Тест Геймпада", { 150,30 })) {
+                                    SettingsUI->bGamepadTestUI = true;
+                                }
                             }
                             
 
@@ -1180,6 +1204,7 @@ int main(int, char** argv)
                         PahomEngine->bLoadingFrame = false;
                         bMainTrackStarted = true;
                         PahomEngine->strings.log("loading frame false", "Engine");
+                        bMainIntroAudioLoaded = false;
 
                     }
                     ImGui::SameLine();
@@ -1190,12 +1215,14 @@ int main(int, char** argv)
                     ImGui::PopFont();
                     PahomEngine->bControlsIsKeyboard = true;
                     PahomEngine->bControlsIsGamepad = true;
-                    if (PahomEngine->GetGamepadKey(PahomEngine->keyMap.i64AGamepad, 0)) {
+                    if (PahomEngine->GetGamepadKey(PahomEngine->keyMap.i64AGamepad, 0) && !SettingsUI->bGamepadTestUI) {
                         PahomEngine->bLoadingFrame      = false;
                         PahomEngine->bControlsIsGamepad = true;
+                        bMainIntroAudioLoaded = false;
                     }
                     if (GetAsyncKeyState(VK_RETURN)) {
                         PahomEngine->bLoadingFrame = false;
+                        bMainIntroAudioLoaded = false;
                        // PahomEngine->bStartGame    = true;
                     }
                     
@@ -1326,6 +1353,9 @@ int main(int, char** argv)
                          
                              PahomEngine->log(std::format("audio call 3 ->{}", PahomEngine->audio.audiolist[10]));
                              PahomEngine->audio.play3(10);
+                             if (PahomEngine->audio.audioDevice) {
+                                 PahomEngine->audio.Device(0, false);
+                             }
                           
                           bMainTrackStarted = false;
                         }
@@ -1404,7 +1434,12 @@ int main(int, char** argv)
                             PahomEngine->bStartGameFlag = true;
                             PahomEngine->audio.play2(1);
                             bGameCount = true;
-                            PahomEngine->fPahomPosY = PahomEngine->i64WindowSize[1] - PahomEngine->i64PahomSize[1] - 27;
+                            if (Game->bAntiGravitation) {
+                                PahomEngine->fPahomPosY = PahomEngine->i64PahomSize[1] - 27;
+                            }
+                            else {
+                                PahomEngine->fPahomPosY = PahomEngine->i64WindowSize[1] - PahomEngine->i64PahomSize[1] - 27;
+                            }
 
                         }
                         PahomEngine->selectedItem(i32Item == 0);
@@ -1549,8 +1584,13 @@ int main(int, char** argv)
                         if (PahomEngine->UI->CustomButton(ImVec4(100, 171, 101, 255), ImVec4(7, 7, 7, 255), ImVec4(255, 255, 255, 255), 20, ImVec2(0, 0), "На главную",font3,ImVec2(280,40))) {
                             PahomEngine->bLoadingFrame = true;
                             PahomEngine->bStartGame = false;
+                            bMainIntroAudioLoaded = false;
                         }
                         PahomEngine->selectedItem(i32Item == 3);
+                        PahomEngine->setItemCenterX(280);
+                        if (PahomEngine->UI->CustomButton(ImVec4(100, 171, 101, 255), ImVec4(7, 7, 7, 255), ImVec4(255, 255, 255, 255), 20, ImVec2(0, 0), "Выйти на Рабочий Стол", font3, ImVec2(280, 40))) {
+                            exit(666);
+                        }
                         ImGui::PushFont(font27);
                         PahomEngine->setItemCenterX(ImGui::CalcTextSize("Вверх - ").x
                             + ImGui::CalcTextSize("Вниз - ").x
@@ -1656,7 +1696,13 @@ int main(int, char** argv)
                             PahomEngine->i64PahomSize[1] = 128 * (PahomEngine->bFullscreen ? 2 : 1);
                             PahomEngine->i64BreadSize[0] = 64 * (PahomEngine->bFullscreen ? 2 : 1);
                             PahomEngine->i64BreadSize[1] = 64 * (PahomEngine->bFullscreen ? 2 : 1);
-                            ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[!PahomEngine->bIsRevesed ? 4 : 3]), ImVec2(PahomEngine->i64PahomSize[0], PahomEngine->i64PahomSize[1]));
+                            if (Game->bAntiGravitation) {
+                                ImGui::ImageRotated(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[!PahomEngine->bIsRevesed ? 4 : 3]), ImVec2(PahomEngine->i64PahomSize[0], PahomEngine->i64PahomSize[1]), 180, { 0,0 }, { 1,1 }, { 1,1,1,1 }, { 0,0,0,0 });
+                            }
+                            else {
+                                ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[!PahomEngine->bIsRevesed ? 4 : 3]), ImVec2(PahomEngine->i64PahomSize[0], PahomEngine->i64PahomSize[1]));
+                            }
+                           // ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[!PahomEngine->bIsRevesed ? 4 : 3]), ImVec2(PahomEngine->i64PahomSize[0], PahomEngine->i64PahomSize[1]));
                             ImGui::SetCursorPosY(10); ImGui::SetCursorPosX(10);
                             static int32_t i32DebugTextCounter = 0;
                             if (ImGui::Button("/", ImVec2(32, 32))) {
@@ -1816,6 +1862,7 @@ int main(int, char** argv)
                                     PahomEngine->sBuild,
                                     PahomEngine->Exceptions->i64MemoryUsageProcess);
                             }
+                            ImGui::Checkbox("Game->bAntiGravitation", &Game->bAntiGravitation);
                         }
                     }
                 

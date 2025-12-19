@@ -41,7 +41,9 @@
 #include <stdio.h>
 #include <pdh.h>
 #include <dwmapi.h>
+#include "ImGamepadAPI.hpp"
 #pragma comment(lib,"dwmapi.lib")
+
 //
 #if !_HAS_CXX20
 #error "PahomEngine требует C++20 или новее. Включи флаг -std=c++20 (g++) или /std:c++20 (MSVC)"
@@ -111,8 +113,94 @@ std::string str_stack(void* reg, const std::string& param_name) {
     // Return the string content as std::string
     return std::string(str);
 }
+
+    struct floatV3 {
+        float x, y, z;
+        constexpr floatV3() : x(0.0f), y(0.0f), z(0.0) {}
+        constexpr floatV3(float _x, float _y, float _z) : x(_x), y(_y), z(_z) {}
+
+    };
+    struct MultiVectors2V2 {
+        ImVec2 a, b;
+        constexpr MultiVectors2V2() : a({ 0,0 }), b({ 0,0 }) {}
+        constexpr MultiVectors2V2(ImVec2 _a, ImVec2 _b) : a(_a), b(_b) {}
+        size_t size() const {
+            size_t out_size = sizeof(this->a) + sizeof(this->b);
+            return out_size;
+        }
+    };
+    struct MultiVectors3V2 {
+        ImVec2 a, b, c;
+        constexpr MultiVectors3V2() : a({ 0,0 }), b({ 0,0 }), c({ 0,0 }) {}
+        constexpr MultiVectors3V2(ImVec2 _a, ImVec2 _b, ImVec2 _c) : a(_a), b(_b), c(_c) {}
+        size_t size() const {
+            size_t out_size = sizeof(this->a) + sizeof(this->b) + sizeof(this->c);
+            return out_size;
+        }
+    };
+    struct MultiVectors4V2 {
+        ImVec2 a, b, c, d;
+        constexpr MultiVectors4V2() : a({ 0,0 }), b({ 0,0 }), c({ 0,0 }), d({ 0,0 }) {}
+        constexpr MultiVectors4V2(ImVec2 _a, ImVec2 _b, ImVec2 _c, ImVec2 _d) : a(_a), b(_b), c(_c), d(_d) {}
+        size_t size() const {
+            size_t out_size = sizeof(this->a) + sizeof(this->b) + sizeof(this->c) + sizeof(this->d);
+            return out_size;
+        }
+    };
+
 //
 namespace ImGui {
+    void ImageRotated(ImTextureID user_texture_id, const ImVec2& size, int angle, const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint_col, const ImVec4& border_col)
+    {
+        //IM_ASSERT(angle % 90 == 0);
+        ImVec2 _uv0, _uv1, _uv2, _uv3;
+        switch (angle % 360)
+        {
+        case 0:
+            Image(user_texture_id, size, uv0, uv1, tint_col, border_col);
+            return;
+        case 180:
+            Image(user_texture_id, size, uv1, uv0, tint_col, border_col);
+            return;
+        case 90:
+            _uv3 = uv0;
+            _uv1 = uv1;
+            _uv0 = ImVec2(uv1.x, uv0.y);
+            _uv2 = ImVec2(uv0.x, uv1.y);
+            break;
+        case 270:
+            _uv1 = uv0;
+            _uv3 = uv1;
+            _uv0 = ImVec2(uv0.x, uv1.y);
+            _uv2 = ImVec2(uv1.x, uv0.y);
+            break;
+        }
+        ImGuiWindow* window = GetCurrentWindow();
+        if (window->SkipItems)
+            return;
+        ImVec2 _size(size.y, size.x);
+        ImRect bb(window->DC.CursorPos, window->DC.CursorPos + _size);
+        if (border_col.w > 0.0f)
+            bb.Max += ImVec2(2, 2);
+        ItemSize(bb);
+        if (!ItemAdd(bb, 0))
+            return;
+        if (border_col.w > 0.0f)
+        {
+            window->DrawList->AddRect(bb.Min, bb.Max, GetColorU32(border_col), 0.0f);
+            ImVec2 x0 = bb.Min + ImVec2(1, 1);
+            ImVec2 x2 = bb.Max - ImVec2(1, 1);
+            ImVec2 x1 = ImVec2(x2.x, x0.y);
+            ImVec2 x3 = ImVec2(x0.x, x2.y);
+            window->DrawList->AddImageQuad(user_texture_id, x0, x1, x2, x3, _uv0, _uv1, _uv2, _uv3, GetColorU32(tint_col));
+        }
+        else
+        {
+            ImVec2 x1 = ImVec2(bb.Max.x, bb.Min.y);
+            ImVec2 x3 = ImVec2(bb.Min.x, bb.Max.y);
+            window->DrawList->AddImageQuad(user_texture_id, bb.Min, x1, bb.Max, x3, _uv0, _uv1, _uv2, _uv3, GetColorU32(tint_col));
+        }
+    }
     bool CustomToggle( const char* label, bool* v) {
         ImGuiWindow* window = ImGui::GetCurrentWindow();
         ImGui::PushID(label); ImGui::TextColored((*v ? ImVec4(1.0f, 1.0f, 1.0f, 1.00f)  : ImVec4(0.65f, 0.65f, 0.65f, 1.00f)), label);
@@ -372,7 +460,7 @@ struct CImage {
     bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height, unsigned char* imgBuffer);
     ImVec2 ResizeImage(uint64_t fCArrayFloat);
     uint64_t InitCImage(std::string png_file);
-    
+    uint32_t pixel_buffer[256];
     std::string getAspectRatio(int x, int y);
     int64_t GetImageSize(int width, int height);
     int64_t GetVRAMSize(GLuint vbo);
@@ -481,9 +569,9 @@ bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
     int image_width = 0;
     int image_height = 0;
     static int ic = 0;
-    
-    unsigned char* image_data = stbi_load(filename, &image_width, &image_height, NULL, 4);
-    if (!image_data)
+    uint8_t* imageData;
+    imageData = stbi_load(filename, &image_width, &image_height, NULL, 4);
+    if (!imageData)
     {
         return false;
     }
@@ -494,17 +582,13 @@ bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
         GLuint image_texture;
         glGenTextures(1, &image_texture);
         glBindTexture(GL_TEXTURE_2D, image_texture);
-
-        // Setup filtering parameters for display
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        // Upload pixels into texture
 #if defined(GL_UNPACK_ROW_LENGTH) && !defined(__EMSCRIPTEN__)
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 #endif
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
-        stbi_image_free(image_data);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, imageData);
+        stbi_image_free(imageData);
 
         *out_texture = image_texture;
         *out_width = image_width;
@@ -517,7 +601,7 @@ bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
 struct KurlikAUDIO {
     std::string audiolist[12] = { "assets/audio/kurlik.wav",
                                  "assets/audio/voda.wav",
-                                 "assets/audio/krik.wav",
+                                 "assets/audio/intro.wav",
                                  "assets/audio/pidoras.wav",
                                  "assets/audio/mrrobot.wav",
                                  "assets/audio/a.wav",
@@ -688,6 +772,7 @@ void KurlikAUDIO::Mute() {
         audioDevice3.setVolume(0);
     }
 }
+// не использвать!! хуета.
 void KurlikAUDIO::getGain(int64_t idx) {
     if (isDeviceActive) {
         switch (idx) {
@@ -710,6 +795,7 @@ void KurlikAUDIO::getGain(int64_t idx) {
         }
   }
 }
+// аккуратно использвать. Проверяйте audioDevice на nullptr
 void KurlikAUDIO::vue() {
     if (ImGui::BeginPopup("vue", ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Text("AudioEngine");
@@ -763,6 +849,7 @@ void KurlikAUDIO::vue() {
 float KurlikAUDIO::convertToMinutes() {
     return audioTime->current / 60;
 }
+// Бесполезная функция. Не использовать
 void KurlikAUDIO::getTimeline(int64_t idx) {
     if (isDeviceActive) {
         switch (idx) {
@@ -912,7 +999,7 @@ struct ASSETSDATA {
 };
 struct IMAGEDATA {
     GLuint  TextureArray[256];
-    uint8_t TextureBufferArray[256];
+    uint8_t* TextureBufferArray[256];
     int TextureX[256];
     int TextureY[256];
 };
@@ -1260,10 +1347,15 @@ struct EXCEPTIONS {
         logFile << "------------------------\n";
         logFile.close();
         std::wstring wlogo(logoPahom.begin(), logoPahom.end());
-        std::wstring msg = L"Exception: " + std::wstring(errorCode.begin(), errorCode.end()) + L"\n------------------- STACK TRACE ---------------\n" + std::wstring(stackTraceW.begin(), stackTraceW.end()) +
+        std::wstring msg = L"[exception]\n" + std::wstring(errorCode.begin(), errorCode.end()) + L" \n[stack_trace]\n" + std::wstring(stackTraceW.begin(), stackTraceW.end()) +
             L"\nSee crash_log.txt for details.\nPlease send crash_log.txt to @hcppstudio.";
         stdoutColored(std::string(msg.begin(), msg.end()), 0x4F);
-        MessageBox(NULL, msg.c_str(), titleProject.c_str(), MB_OK | MB_ICONERROR);
+        std::ofstream fileLogError("crash_log_message.log");
+        fileLogError << std::string(msg.begin(), msg.end()) << std::endl;
+        fileLogError.close();
+        std::string sCommand = "cmd /c start ./RuntimeException.exe crash_log_message.log";
+        WinExec(sCommand.c_str(), 3);
+
 
         return EXCEPTION_EXECUTE_HANDLER;
     }
@@ -1833,11 +1925,11 @@ struct PahomEngineStruct {
         }
         
         template <typename Tm>
-        Tm random(Tm value_max, bool bIsUseRandomDevice = false) {
+        Tm random(Tm value_max, bool bIsUseCachedRandom = false) {
             PahomEngineStruct Engine;
             if(Engine.bIsRandomEngineUsed)
             {
-                if (!bIsUseRandomDevice)
+                if (!bIsUseCachedRandom)
                 {
                     std::random_device rd;
                     std::mt19937 gen(rd());
@@ -1889,6 +1981,7 @@ struct PahomEngineStruct {
         void print(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
           std::cout<< _STD vformat(_Fmt.get(), _STD make_format_args(_Args...));
         }
+        /// хуета не рабочая!! не использовать
         template <typename AllocatorName, typename MemoryObject>
         void alloc_ptr() {
             std::unique_ptr<AllocatorName> MemoryObject = std::make_unique<AllocatorName>();
@@ -2005,6 +2098,7 @@ struct PahomEngineStruct {
     bool bDebugText = false;
     bool bBoost777 = false;
     bool bKefir = false;
+    bool bIsImGuiAGamepadAPIUsed = false;
     int64_t i64RandBoost = 0;
     int64_t i64ValuesRands[4] = { 50 , 100, 256, 777 };
     HANDLE hConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -2015,7 +2109,7 @@ struct PahomEngineStruct {
     void logo();
     void progress_bar(float fragtion);
     bool getPressedKey(int8_t key, bool isTurned = false) {
-        return (isTurned ? GetKeyState(key) & 0x8000 : GetKeyState(key) > 0);
+        return (isTurned ? GetAsyncKeyState(key) : GetKeyState(key) > 0);
     }
     void setTextCenterXY(const char* text);
     int64_t ptrint64_t(GLuint tx) {
@@ -2112,10 +2206,19 @@ void  PahomEngineStruct::Tbuffer() {
     PahomEngineStruct::Event.TextBuffer();
 }
 bool  PahomEngineStruct::GetGamepadKey(int64_t iKey,int iMaxDelay) {
-    static int iD = 0;
+    int iD = 0;
     iD++;
     if (iD > iMaxDelay) {
-        return ptrGamepad1->GetState().Gamepad.wButtons == iKey ? true : false;
+        if(!bIsImGuiAGamepadAPIUsed)
+        {
+            return ptrGamepad1->GetState().Gamepad.wButtons == iKey ? true : false;
+        }
+       
+    }
+    if (bIsImGuiAGamepadAPIUsed) {
+        if (getKeyPresed(iKey)) {
+            return true;
+        }
     }
 }
 int64_t PahomEngineStruct::rand64(int64_t in_v) {
