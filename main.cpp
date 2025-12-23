@@ -2,8 +2,8 @@
 #include "thread"
 #include "resource.h"
 
-#pragma once
-
+std::unique_ptr<PahomEngineStruct> PahomEngine;
+std::unique_ptr<GameFrames> Game;
 
 
 struct WGL_WindowData { HDC hDC; };
@@ -142,6 +142,8 @@ std::unique_ptr<SettingsUIStruct> SettingsUI = std::make_unique<SettingsUIStruct
 
 int main(int, char** argv)
 {
+	PahomEngine = std::make_unique<PahomEngineStruct>();
+	Game = std::make_unique<GameFrames>();
     if (PahomEngine) {
         std::cout << "PahomEngine "<<PahomEngine->sBuild << std::endl;
         PahomEngine->logo();
@@ -149,8 +151,8 @@ int main(int, char** argv)
         PahomEngine->i64WindowSizeGL[1] = PahomEngine->i64WindowSizeGL[1];
         SetWindowTextA(GetConsoleWindow(), "PahomEngine:::logs");
         PahomEngine->PESettings->ParseConfig();
-        PahomEngine->Render->gl_ver.major = PahomEngine->PESettings->major_gl;
-        PahomEngine->Render->gl_ver.minor = PahomEngine->PESettings->minor_gl;
+//        PahomEngine->Render->gl_ver.major = PahomEngine->PESettings->major_gl;
+//        PahomEngine->Render->gl_ver.minor = PahomEngine->PESettings->minor_gl;
         PahomEngine->log(std::format("(GPU) OGL{}.{}", PahomEngine->PESettings->major_gl, PahomEngine->PESettings->minor_gl));
         //EnableVT();
     }
@@ -257,7 +259,7 @@ int main(int, char** argv)
         "xlink_1752 - 25р      ",
         "Aman_Legend0 - 20р    "
     };
-   int64_t i64DonatersBufferSize = PE_ARRAYSIZE(donaters);
+   int64_t i64DonatersBufferSize = std::size(donaters);
    
     bool main_logo = true;
     bool done = false;
@@ -543,9 +545,9 @@ int main(int, char** argv)
                             i32DonationNameId = i64DonatersBufferSize;
                         }
                         else {
-                            i32DonationNameId += 1;
 
                             sDonatersString += donaters[i32DonationNameId] + "\n";
+                            i32DonationNameId++;
                             //PahomEngine->log(std::format("{} : {}", fScrollDelay, i32DonationNameId), 1);
                         }
                         fScrollDelay = 0;

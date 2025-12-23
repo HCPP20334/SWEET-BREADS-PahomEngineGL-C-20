@@ -1,4 +1,10 @@
+#pragma once
 #include <GL/GL.h>
+#include <format>
+#include <vector>
+#include <thread>
+#include <random>
+
 typedef HGLRC(WINAPI* PFNWGLCREATECONTEXTATTRIBSARBPROC) (HDC hDC, HGLRC hShareContext, const int* attribList);
 #define WGL_CONTEXT_MAJOR_VERSION_ARB             0x2091
 #define WGL_CONTEXT_MINOR_VERSION_ARB             0x2092
@@ -36,10 +42,7 @@ HGLRC CreateGL(HDC hDC, int major, int minor)
 
     return hRC_final;
 }
-#include <vector>
-#include <thread>
-#include <random>
-#include <format>
+
 struct colorU32 {
     uint32_t r, g, b, a;
     colorU32() : r(0), g(0), b(0), a(0) {}

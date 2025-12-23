@@ -1,7 +1,9 @@
-﻿#include "PahomEngine.h"
+﻿#pragma once
+#include "PahomEngine.h"
 #include <shellapi.h>
-#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
-#define CRT_NO_WARNINGS 1
+
+extern std::unique_ptr<PahomEngineStruct> PahomEngine;
+
 struct GameFrames {
     // game flags
 
@@ -11,13 +13,13 @@ struct GameFrames {
     void randomKickBratishka();
     void ShowEventTray(std::wstring text,HWND hwndGame = nullptr) {
         static int32_t i32TrayNoficationId = 0;
-        NOTIFYICONDATA nid = {}; nid.cbSize = sizeof(NOTIFYICONDATA); nid.hWnd = hwndGame;
+        NOTIFYICONDATAW nid = {}; nid.cbSize = sizeof(NOTIFYICONDATA); nid.hWnd = hwndGame;
         static int32_t i32Timer = 0;
         i32Timer++;
         nid.uID = 1; nid.uFlags = NIF_MESSAGE; wcsncpy_s(nid.szInfo, text.c_str(), _TRUNCATE); wcsncpy_s(nid.szInfoTitle, L"Пахом", _TRUNCATE);
-        nid.dwInfoFlags = NIF_INFO; Shell_NotifyIcon(NIM_ADD, &nid);
+        nid.dwInfoFlags = NIF_INFO; Shell_NotifyIconW(NIM_ADD, &nid);
         if (i32Timer >= 5) {
-            Shell_NotifyIcon(NIM_DELETE, &nid);
+            Shell_NotifyIconW(NIM_DELETE, &nid);
             i32Timer = 0;
         }
     }
@@ -926,7 +928,6 @@ void  GameFrames::randomKickBratishka() {
     PahomEngine->Text("MultiVector3V2 Size: {}", MtVec32.size());
     PahomEngine->Text("MultiVector2V2 Size: {}", MtVec22.size());
 }
-auto Game = std::make_unique<GameFrames>();
 //PahomEngine->cio->alloc_ptr<GameFrames, Game>(Game);
 
 ////////////////////////////////////////////////////
