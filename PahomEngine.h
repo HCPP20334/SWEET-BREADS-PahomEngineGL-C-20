@@ -2536,7 +2536,6 @@ bool PahomEngineStruct::StyleLoadBlur() {
 
     return true;
 }
-auto PahomEngine = std::make_unique<PahomEngineStruct>();
 namespace PE {
     template <class... Tm>
     void print(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
