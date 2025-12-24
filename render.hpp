@@ -47,6 +47,7 @@ struct colorU32 {
     uint32_t get() const {
         return (((uint32_t)(this->a) << 24) | ((uint32_t)(this->b) << 16) | ((uint32_t)(this->g) << 8) | ((uint32_t)(this->r) << 0));
     }
+    // get convert ColorU32 RGBA to ImVec4
     ImVec4 getIV4() const {
         colorU32 colorGet = { this->r,this->g,this->b,this->a };
         return ImVec4(
@@ -57,20 +58,28 @@ struct colorU32 {
 
         );
     }
+    std::string HEX() const {
+        return (std::format("{:02X}{:02X}{:02X}{:02X}", this->r, this->g, this->b, this->a));
+    }
+    // Debug Features to check colors
     std::string toStringView() const {
         return std::format("U32RGBA({},{},{},{})->0x{}", this->r, this->g, this->b, this->a, colorU32(this->r, this->g, this->b, this->a).get());
     }
    
 };
+// convert to ImVec4 color to ColorU32 | Work Correctly
 uint32_t ToU32(ImVec4 color) {
     ImVec4 col = { color.x * 255 ,color.y * 255,color.z * 255,color.w * 255 };
     return (((uint32_t)(col.w) << 24) | ((uint32_t)(col.z) << 16) | ((uint32_t)(col.y) << 8) | ((uint32_t)(col.x) << 0));
 }
 struct GLM {
+    void Pen(int draw_x, int draw_y, colorU32 u32Color);
+    void toU32Buffer(uint8_t* buffer_std);
     std::vector<uint32_t>pixel_buffer;
     int64_t i64BrushSize = 20;
     GLuint textureID;
     int width_texture = 0,height_texture = 0;
+    // Init Texture
     void InitTexture() {
         glGenTextures(1, &textureID);
         glBindTexture(GL_TEXTURE_2D, textureID);
@@ -79,31 +88,58 @@ struct GLM {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width_texture, height_texture, 0,
             GL_RGBA, GL_UNSIGNED_BYTE, pixel_buffer.data());
     }
+    // Set Size Texture to Pixel Buffer
     void SetSize(int w, int h) {
         width_texture = w;
         height_texture = h;
-        pixel_buffer.resize(w * h); 
+        pixel_buffer.resize(w * h);
         std::fill(pixel_buffer.begin(), pixel_buffer.end(), 255);
     }
+    // Add Pixel to Pixel Buffer
     void SetPixel(int x, int y, uint32_t color) {
         if (x >= 0 && x < width_texture && y >= 0 && y < height_texture) {
             pixel_buffer[y * width_texture + x] = color;
         }
     }
+    // segment code to not usuly
+   /* void copyPixel(GLuint textureImage) {
+        textureID = textureImage;
+    }
+    void GenTextureToPixelBuffer(void* pixel_buffer,GLuint* textureOut) {
+        GLuint texture = 0;
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexSubImage2D(
+            GL_TEXTURE_2D,
+            0,
+            0, 0,
+            width_texture, height_texture,
+            GL_RGBA, GL_UNSIGNED_BYTE,
+            pixel_buffer
+        );
+        glBindTexture(GL_TEXTURE_2D, 0);
+        *textureOut = texture;
+    }
+    void SwapRawPixel(uint8_t* val, uint32_t *val2) {
+        *val2 = reinterpret_cast<uint32_t>(reinterpret_cast<void*>(val));
+    }*/
+    // Update Texture: needed to Update Pixels to texture
+
     void UpdateTexture() {
         if (textureID == 0) return;
         glBindTexture(GL_TEXTURE_2D, textureID);
         glTexSubImage2D(
-            GL_TEXTURE_2D,           
-            0,                      
-            0, 0,                   
+            GL_TEXTURE_2D,
+            0,
+            0, 0,
             width_texture, height_texture,
             GL_RGBA, GL_UNSIGNED_BYTE,
             pixel_buffer.data()
         );
         glBindTexture(GL_TEXTURE_2D, 0);
     }
-    void fillSqware(int size_x, int size_y, bool isEnableMultiThreads = false) {
+    // unit test #0 fill random multicolor square/ Worked! Paint Fill Random Pixel to Set Size
+    // std::random_device - Fuck you! You Slowed!!!!! He not needed/ My English very shit
+    bool fillSqware(int size_x, int size_y, bool isEnableMultiThreads = false,uint32_t tmax = 0) {
         if (!isEnableMultiThreads) {
             for (int x = 0; x < size_x; x++) {
                 for (int y = 0; y < size_y; y++) {
@@ -112,7 +148,7 @@ struct GLM {
             }
         }
         else {
-            uint32_t num_threads = std::jthread::hardware_concurrency();
+            uint32_t num_threads = tmax < 1 ? std::jthread::hardware_concurrency() : tmax;
             size_t total_pixels = (size_t)size_x * size_y;
             size_t chunk_size = total_pixels / num_threads;
 
@@ -126,28 +162,85 @@ struct GLM {
                 tCPUThreads.emplace_back([=] {
                     for (size_t i = start_index; i < end_index; ++i) {
 
-                        uint32_t random_rgba = colorU32(rand() % 255,rand() % 255, rand() % 255,255).get();
+                      //  uint32_t random_rgba = colorU32(rand() % 255, rand() % 255, rand() % 255, 255).get();
                         int x = i % size_x;
                         int y = i / size_x;
-                        this->pixel_buffer[i] = random_rgba;
+                        Pen(x, y, colorU32(rand() % 255, rand() % 255, rand() % 255, 255));
                     }
                     });
+                if (t >= num_threads) {
+                    return true;
+                }
+                
             }
+          
         }
-        
+
+    }
+bool bSelectorTextureIsOpen = false;
+#define GLM_ARRAYSIZE(_ARR) (static_cast<int>(sizeof(_ARR) / sizeof(*(_ARR)))) 
+#define i64Texture(tex) (reinterpret_cast<int64_t>(reinterpret_cast<void*>(tex)))
+#define color_null colorU32(0,0,0);
+    void swapTextures(GLuint* in, GLuint out) {
+        *in = out;
     }
 
-    void Pen(int draw_x,int draw_y, colorU32 u32Color) {
-        int brush_size = 20;
-        int half_brush = brush_size / 2;
-            for (int x = draw_x - half_brush; x < draw_x + half_brush; x++) {
-                for (int y = draw_y - half_brush; y < draw_y + half_brush; y++) {
-                    if (x >= 0 && x < width_texture &&
-                        y >= 0 && y < height_texture)
-                    {
-                        SetPixel(x, y, u32Color.get());
+    void SelectTextureToSwapUI(GLuint* arrayTextures, size_t maxTextures,uint8_t** u8ptr_buffer) {
+        int nLineImage = 0;
+        static GLuint glTextureSwap;
+        if (ImGui::BeginPopup("SelectToTexture",ImGuiWindowFlags_AlwaysAutoResize)) {
+            bSelectorTextureIsOpen = true;
+            if (GLM_ARRAYSIZE(arrayTextures) > 0) {
+                for (int getTextureList = 0; getTextureList < maxTextures; getTextureList++) {
+                   /* ImGui::PushID(getTextureList);
+                    if (ImGui::Button("Copy")) {
+                        toU32Buffer(u8ptr_buffer[getTextureList]);
+                    }
+                    ImGui::PopID();*/
+                    ImGui::SameLine();
+                    ImGui::Image(i64Texture(arrayTextures[getTextureList]), ImVec2(128, 128));
+                    if (ImGui::IsItemClicked()) {
+                        arrayTextures[getTextureList] = textureID;
+                        bSelectorTextureIsOpen = false;
+                    ImGui::CloseCurrentPopup();
+                    }
+                    nLineImage++;
+                    if (nLineImage > 300) {
+                        ImGui::SameLine();
+                        nLineImage = 0;
                     }
                 }
+              
             }
+            ImGui::EndPopup();
+        }
     }
+    
 };
+void GLM::toU32Buffer(uint8_t* buffer_std) {
+    std::copy(reinterpret_cast<uint32_t*>(reinterpret_cast<void*>(buffer_std)), reinterpret_cast<uint32_t*>(reinterpret_cast<void*>(buffer_std)) + pixel_buffer.size(), pixel_buffer.data());
+}
+void GLM::Pen(int draw_x, int draw_y, colorU32 u32Color) {
+    int brush_size = 20;
+    int half_brush = brush_size / 2;
+    for (int x = draw_x - half_brush; x < draw_x + half_brush; x++) {
+        for (int y = draw_y - half_brush; y < draw_y + half_brush; y++) {
+            if (x >= 0 && x < width_texture &&
+                y >= 0 && y < height_texture)
+            {
+                SetPixel(x, y, u32Color.get());
+            }
+        }
+    }
+}
+
+GLM glpx;
+bool bStopBench = false;
+void FillBenchCPU(int iSizeX, int iSizeY,uint32_t tmax) {
+    ImGui::Begin("Fill OGL Test",NULL);
+    ImGui::SetWindowSize({ 512,512 });
+    ImGui::SetCursorPos({ 0,0 });
+    ImGui::Image((int64_t)(void*)glpx.textureID, { 512,512 });
+    glpx.UpdateTexture();
+    ImGui::End();
+}

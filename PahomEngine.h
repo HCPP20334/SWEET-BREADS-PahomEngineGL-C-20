@@ -42,6 +42,9 @@
 #include <pdh.h>
 #include <dwmapi.h>
 #include "ImGamepadAPI.hpp"
+#include "tui.hpp"
+#include <commdlg.h>
+#include <span>
 #pragma comment(lib,"dwmapi.lib")
 
 //
@@ -87,7 +90,7 @@ struct d64Vec2 {
     static constexpr d64Vec2 S_(double64_t s, d64Vec2 v) {
         return { s * v.x, s * v.y };
     }
-    std::string to_string(int st) const {
+    std::string_view to_string(int st) const {
         return std::format("{}", ((!st) ? this->x : this->y));
     }
 };
@@ -110,10 +113,19 @@ std::string str_stack(void* reg, const std::string& param_name) {
     std::cout << param_name << "=" << reinterpret_cast<uintptr_t>(reg)
         << " stack=" << reg << std::endl;
 
-    // Return the string content as std::string
+    // Return the string content as std::string_view
     return std::string(str);
 }
-
+template <typename T>
+struct UniVec2 {
+    T a, b;
+    constexpr UniVec2() : a(), b() {}
+    constexpr UniVec2(T _a, T _b) : a(_a), b(_b) {}
+    size_t size() const {
+        size_t out_size = sizeof(this->a) + sizeof(this->b);
+        return out_size;
+    }
+};
     struct floatV3 {
         float x, y, z;
         constexpr floatV3() : x(0.0f), y(0.0f), z(0.0) {}
@@ -150,6 +162,10 @@ std::string str_stack(void* reg, const std::string& param_name) {
 
 //
 namespace ImGui {
+    bool SliderU32(const char* label, uint32_t* v, uint32_t v_min = 0, uint32_t v_max = 100, const char* format = "%d", ImGuiSliderFlags flags = 0)
+    {
+        return SliderScalar(label, ImGuiDataType_U32, v, &v_min, &v_max, format, flags);
+    }
     void ImageRotated(ImTextureID user_texture_id, const ImVec2& size, int angle, const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint_col, const ImVec4& border_col)
     {
         //IM_ASSERT(angle % 90 == 0);
@@ -415,7 +431,7 @@ namespace ImGui {
         ImGui::GetWindowDrawList()->AddRectFilled(p_min, p_max, ImGui::GetColorU32(col));
         ImGui::Dummy(ImVec2(size_x, thickness));
     }
-    void widget_log(std::string t) {
+    void widget_log(std::string_view t) {
         std::cout << t;
     }
     void RenderBlur(HWND hwnd) {
@@ -565,7 +581,7 @@ bool CImage::LoadTextureRawData(unsigned char* raw, GLuint* out_texture, int* ou
 
     }
 }//
-bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height, unsigned char* imgBuffer) {
+bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height, uint8_t* imgBuffer) {
     int image_width = 0;
     int image_height = 0;
     static int ic = 0;
@@ -576,8 +592,8 @@ bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
         return false;
     }
     else {
-       
-        std::cout << std::dec << image_width << " x " << image_height << std::endl;
+        imgBuffer = imageData;
+        std::cout << std::dec << image_width << " x " << image_height << " " << PE_ARRAYSIZE(imageData) << "  " << PE_ARRAYSIZE(imgBuffer) << std::endl;
        
         GLuint image_texture;
         glGenTextures(1, &image_texture);
@@ -604,7 +620,7 @@ struct KurlikAUDIO {
                                  "assets/audio/intro.wav",
                                  "assets/audio/pidoras.wav",
                                  "assets/audio/mrrobot.wav",
-                                 "assets/audio/a.wav",
+                                 "assets/audio/pain100_1.wav",
                                  "assets/audio/smex.wav",
                                  "assets/audio/aaa.wav",
                                  "assets/audio/khuli-ty-govnom-to-vymazalsia.wav",
@@ -641,7 +657,7 @@ struct KurlikAUDIO {
     struct time {
         float current = 0.0f;
         float max = 0.0f;
-        std::string formatTime(float seconds) {
+        std::string_view formatTime(float seconds) {
             float minutes = floor(seconds / 60);
             float secs    = seconds;
             return (std::to_string(minutes) + ":" + (secs < 10 ? "0" : " ") + std::to_string(secs)).c_str();
@@ -657,14 +673,31 @@ struct KurlikAUDIO {
         }
         fileAssets.close();
     }
-    void ScanFiles(const std::string& directory = "musics") {
+    void openFileDialog(std::string& fileName) {
+        // common dialog box structure, setting all fields to 0 is important
+        OPENFILENAMEA ofn;
+        char szFileName[MAX_PATH];
+
+        ZeroMemory(&ofn, sizeof(ofn));
+        szFileName[0] = 0;
+
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = NULL;
+        ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0";
+        ofn.lpstrFile = szFileName;
+        ofn.nMaxFile = 520;
+        ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+        GetOpenFileNameA(&ofn);
+        fileName = std::string_view((char*)ofn.lpstrFile);
+    }
+    void ScanFiles(const std::string_view& directory = "musics",const std::string_view& file_extension = ".wav") {
         static int64_t i64FileCount = 0;
         musicFiles.clear(); // Очищаем плейлист
         try {
             // Сканируем директорию
             for (const auto& entry : std::filesystem::recursive_directory_iterator(
                 directory, std::filesystem::directory_options::skip_permission_denied)) {
-                if (entry.is_regular_file() && entry.path().extension() == ".mp3") {
+                if (entry.is_regular_file() && entry.path().extension() == file_extension) {
                     musicFiles.push_back(entry.path().string());
                     std::cout << __TIME__ << " Found " << i64FileCount << " File: " << musicFiles[i64FileCount] << std::endl;
                     i64FileCount++;
@@ -681,7 +714,7 @@ struct KurlikAUDIO {
         }
     }
     std::unique_ptr<time> audioTime = std::make_unique<time>();
-    std::string sLastAudioFile[3] = {"0","0","0"};
+    std::string_view sLastAudioFile[3] = {"0","0","0"};
     void music_player(int64_t i) {
         //  PlaySoundA(file.c_str(), NULL, 1);
         idx = i;
@@ -726,7 +759,7 @@ struct KurlikAUDIO {
        
 
     }
-    bool loadFileToWav(std::string file, int64_t idx_device) {
+    bool loadFileToWav(std::string_view file, int64_t idx_device) {
         switch (idx_device) {
         case 0:
             if (audioDevice) {
@@ -937,10 +970,10 @@ void KurlikAUDIO::pause() {
     audioDevice.pause();
 }
 struct STRINGSDATA {
-    void log(std::string text,std::string moduleName) {
+    void log(std::string_view text,std::string_view moduleName) {
         std::cout<<"[PahomEngine::"+std::format("%s]",moduleName) << text << std::endl;
    }
-    std::string PAHOM_ENGINE =
+    std::string_view PAHOM_ENGINE =
         " ����������     ����    ���    ���   ����   ���    �����   \n"
         " ��      ��   ��   ��   ���    ��� ��    �� �� �� ��  ��   \n"
         " ��     ��    ��   ��   ���������� ��    �� ��  ���   ��   \n"
@@ -967,7 +1000,7 @@ struct STRINGSDATA {
 // 
 
 
-#define engine_bulid std::wstring(L"0.8.5a1f (pre-release)");
+#define engine_bulid std::wstring(L"0.8.7 (pre-release)");
 
 //
 struct ASSETSDATA {
@@ -986,8 +1019,8 @@ struct ASSETSDATA {
     }; //5
 
 
-    bool validFiles(std::string file) {
-        std::ifstream fileAssets(file);
+    bool validFiles(std::string_view file) {
+        std::ifstream fileAssets(file.data());
         if (fileAssets.is_open()) {
             return true;
         }
@@ -1050,11 +1083,11 @@ struct MEMORYDATA {
             break;
         }
     }
-    std::string MemoryInfo() {
+    std::string_view MemoryInfo() {
         getData(&i64MemoryTotal, 1);
         getData(&i64MemoryFree , 2);
         getData(&i64MemoryUsed , 0);
-        std::string mem_str = 
+        std::string_view mem_str = 
             "Total:   " + std::to_string(i64MemoryTotal) + " GB"
             "\nUsed :   " + std::to_string(i64MemoryUsed)  + " GB"
             "\nFree :   " + std::to_string(i64MemoryFree)  + " GB";
@@ -1084,7 +1117,7 @@ struct MEMORYDATA {
         return result;
     }
 
-    void Mem_log(std::string text) {
+    void Mem_log(std::string_view text) {
         std::cout << text << std::endl;
     }
     std::string GetProcessName() {
@@ -1099,22 +1132,22 @@ struct MEMORYDATA {
 };
 auto ptrMemory = std::make_unique<MEMORYDATA>();
 struct GameEvent {
-    std::string TextBufferStr;
+    std::string_view TextBufferStr;
     ImVec4 col;
     int64_t i64TimerEvent = 0;
-    bool isTextHidden = false;
+    bool isTextHidden = false, bTextureEditor = false;
     int64_t i64WindowSize[2] = { 800 , 600 };
     void TextBuffer() {
         ImVec2 f2TextCenterPos = {
-           (i64WindowSize[0] - ImGui::CalcTextSize(TextBufferStr.c_str()).x) / 2,
-           (i64WindowSize[1] - ImGui::CalcTextSize(TextBufferStr.c_str()).y) / 2,
+           (i64WindowSize[0] - ImGui::CalcTextSize(TextBufferStr.data()).x) / 2,
+           (i64WindowSize[1] - ImGui::CalcTextSize(TextBufferStr.data()).y) / 2,
         };
         ImGui::SetCursorPos(
             f2TextCenterPos
         );
         if (!isTextHidden) {
          
-            ImGui::TextColored(col, TextBufferStr.c_str());
+            ImGui::TextColored(col, TextBufferStr.data());
         }
         
     }
@@ -1127,7 +1160,7 @@ struct GameEvent {
         col = col;
     }
     void clearEvent() {
-        TextBufferStr.clear();
+        TextBufferStr = "";
     }
     float clr(float a) {
         return a / 255.0f;
@@ -1188,7 +1221,7 @@ struct GameEvent {
     int32_t i32ReverseImage = -1;
     bool AutoScaleImage = false;
 };
-std::string logoPahom =
+std::string_view logoPahom =
 " %%%%%%  %%%%%  %%%  %%%   %%%   %%%    %%%\n"
 " %%   %  %% %%  %%%  %%% %%   %% %% %  % %%\n"
 " %%%%%   %%%%%  %%%%%%%% %%   %% %%  %%  %%\n"
@@ -1275,7 +1308,7 @@ struct EXCEPTIONS {
 
             if (SymFromAddr(process, address, &displacement, symbol)) {
                 // ����������� char* � wstring
-                std::string funcName(symbol->Name);
+                std::string_view funcName(symbol->Name);
                 std::wstring wFuncName(funcName.begin(), funcName.end()); // ������� �������������� (��� ����������� MultiByteToWideChar ��� ��������)
                 ss << L"Function: " << wFuncName << L" + 0x" << std::hex << displacement;
             }
@@ -1289,7 +1322,7 @@ struct EXCEPTIONS {
             DWORD lineDisplacement = 0;
             if (SymGetLineFromAddr64(process, address, &lineDisplacement, &line)) {
                 // ����������� char* � wstring
-                std::string fileName(line.FileName);
+                std::string_view fileName(line.FileName);
                 std::wstring wFileName(fileName.begin(), fileName.end());
                 ss << L" at " << wFileName << L":" << std::dec << line.LineNumber;
             }
@@ -1313,8 +1346,8 @@ struct EXCEPTIONS {
     static LONG WINAPI CrashHandler(PEXCEPTION_POINTERS pExInfo) {
         std::wstring errorMsg;
         std::wstring errorCode;
-        std::string errorMsgA;
-        std::string errorCodeA;
+        std::string_view errorMsgA;
+        std::string_view errorCodeA;
         switch (pExInfo->ExceptionRecord->ExceptionCode) {
         case EXCEPTION_ILLEGAL_INSTRUCTION: // 0xC000001D
             errorCode = L"Iligal Instruction (0xC000001D)";
@@ -1333,7 +1366,7 @@ struct EXCEPTIONS {
             errorCodeA = "Undefined Exception (0x" + std::to_string(pExInfo->ExceptionRecord->ExceptionCode) + ")";
             break;
         }
-        std::vector<std::string> vec;
+        std::vector<std::string_view> vec;
         std::wstring sEngineInfoW = L"PahomEngine " + engine_bulid;
         std::wstring stackTraceW = GetStackTrace(pExInfo);
         std::wstring wsapp = sEngineInfoW;
@@ -1375,7 +1408,7 @@ struct Diffinity {
     int64_t i64diff[3] = {
         16,24,8
     };
-    std::vector<std::string >ccDiff = {
+    std::vector<std::string_view >ccDiff = {
         "Легкая",
         "Средняя",
         "Поехавший",
@@ -1770,11 +1803,11 @@ struct GamepadButtons {
 
 struct PahomEngineStruct {
     //
-    std::string sBuild = "0.8.5 (pre-release)";
-    std::string sBuildGame = "0.8.5 (pre-release)";
+    std::string sBuild = "0.8.7 (pre-release)";
+    std::string sBuildGame = "0.8.7 (pre-release)";
     //
-    std::wstring sWBuild = L"0.8.5 (pre-release)";
-    std::wstring sWBuildGame = L"0.8.5 (pre-release)";
+    std::wstring sWBuild = L"0.8.7 (pre-release)";
+    std::wstring sWBuildGame = L"0.8.7 (pre-release)";
     //
     bool CVsync = true;
     uint64_t fCPoint = 0;
@@ -1870,7 +1903,7 @@ struct PahomEngineStruct {
             }
             PahomEngineSettings.close();
         }
-        void Save(std::string string_param) {
+        void Save(std::string_view string_param) {
             std::ofstream PahomEngineSettings("PahomEngine.cfg");
             PahomEngineSettings << string_param << std::endl;
             PahomEngineSettings.close();
@@ -1878,6 +1911,7 @@ struct PahomEngineStruct {
     };
     std::unique_ptr<GameSettingsOffsets> PESettings = std::make_unique<GameSettingsOffsets>();
     struct mathValues {
+        
         template <typename Tm>
         Tm minv(Tm a, Tm b) {
             return std::min<Tm>(a, b);
@@ -1902,12 +1936,12 @@ struct PahomEngineStruct {
             return *x;   
         }
         template <typename T>
-        std::string find(T str, T sub)
+        std::string_view find(T str, T sub)
         {
-            std::string str_buf = std::to_string(str);
-            std::string sub_buf = std::to_string(sub);
-            std::string buf;
-            for (int i = 0; (i = str_buf.find(sub_buf, i)) != std::string::npos; i = i + sub_buf.size())
+            std::string_view str_buf = std::to_string(str);
+            std::string_view sub_buf = std::to_string(sub);
+            std::string_view buf;
+            for (int i = 0; (i = str_buf.find(sub_buf, i)) != std::string_view::npos; i = i + sub_buf.size())
             {
                 buf += sub_buf;
             }
@@ -1915,18 +1949,18 @@ struct PahomEngineStruct {
             return buf;
         }
         bool findV(int64_t v, int64_t find_v) {
-            std::string strBuffer = std::format("{}", v);
+            std::string_view strBuffer = std::format("{}", v);
             int32_t sizeBuffer = strBuffer.size();
             for (int32_t cint = 0; cint < sizeBuffer; cint++) {
                 if (std::format("{}", strBuffer[cint]) == std::format("{}", find_v)) {
                     return true;
                 }
-            }
+            }  
         }
         
         template <typename Tm>
         Tm random(Tm value_max, bool bIsUseCachedRandom = false) {
-            PahomEngineStruct Engine;
+            PahomEngineStruct Engine; // не придумал ничего лучше хуйни)
             if(Engine.bIsRandomEngineUsed)
             {
                 if (!bIsUseCachedRandom)
@@ -1975,6 +2009,29 @@ struct PahomEngineStruct {
         Tm cast_to_string(Tm type) {
             return std::format("{}", type);
         }
+        template <typename In, typename Out>
+        Out unicast(In value) {
+            if constexpr (std::is_arithmetic_v<In> && std::is_arithmetic_v<Out>) {
+                return static_cast<Out>(value);
+            }
+            else {
+                std::string sv;
+                if constexpr (std::is_convertible_v<In, std::string>) {
+                    sv = value;
+                }
+
+                Out result{};
+                auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), result);
+                if (ec == std::errc::invalid_argument) {
+                    throw std::invalid_argument("unicast: not a number");
+                }
+                else if (ec == std::errc::result_out_of_range) {
+                    throw std::out_of_range("unicast: out of range");
+                }
+
+                return result;
+            }
+        }
     };
     struct bufferio {
         template <class... Tm>
@@ -1992,7 +2049,7 @@ struct PahomEngineStruct {
         struct apiVersion {
             int minor = 2;
             int major = 3;
-            std::string strVersion[4] = {
+            std::string_view strVersion[4] = {
                 "1.0",
                 "2.0",
                 "3.0",
@@ -2089,6 +2146,7 @@ struct PahomEngineStruct {
     float fStepMove = 6.0f;
     void InputI64(const char* id, int64_t* v);
     void InputFloat(const char* id, float* v);
+    void setItemCenterX(float sizeText, float window_size_x);
     void reloadBreadPos();
     int64_t rand64(int64_t in_v);
     float randfloat(float in_v);
@@ -2157,13 +2215,13 @@ void  PahomEngineStruct::log(std::string text,int iLogTypeFlags = 1) {
     std::time_t t = std::chrono::system_clock::to_time_t(now);
     std::tm* local_tm = std::localtime(&t);
     bLogEnabled = true;
-    std::vector<std::string> typeStr = {
+    std::vector<std::string_view> typeStr = {
         "WARN",
         "INFO",
         "ERR",
         "DEBUG"
     };
-    std::string typeCurrent;
+    std::string_view typeCurrent;
     typeCurrent = (iLogTypeFlags == type::WARN ? typeStr[0] : typeStr[iLogTypeFlags]);
     typeCurrent = (iLogTypeFlags == type::INFO ? typeStr[1] : typeStr[iLogTypeFlags]);
     typeCurrent = (iLogTypeFlags == type::ERR  ? typeStr[2] : typeStr[iLogTypeFlags]);
@@ -2175,25 +2233,31 @@ void  PahomEngineStruct::log(std::string text,int iLogTypeFlags = 1) {
        static_cast<float>(now.time_since_epoch().count() % 10000000 / 10000.0f) // миллисекунды (примерно)
     };
     if (bLogEnabled) {
-        static int32_t i32LogColorText = 14;
+        static ColorV3 colorBacki32 = { 12,12,19 };
+        static ColorV3 colorTexti32 = {0,0,0};
         switch (iLogTypeFlags) {
         case type::WARN: 
-            i32LogColorText = 14;
+            colorTexti32 = { 200,250,0 };
+            colorBacki32 = { 12,12,19 };
             break;
         case type::INFO:
-            i32LogColorText = 15;
+            colorBacki32 = { 32,32,49 };
+            colorTexti32 = { 56,106,253 };
             break;
         case type::ERR:
-            i32LogColorText = 12;
+            colorBacki32 = { 12,12,19 };
+            colorTexti32 = { 250,0,140 };
             break;
         case type::DEBUG:
-            i32LogColorText = 8;
+            colorBacki32 = { 12,12,19 };
+            colorTexti32 = { 0,255,100 };
             break;
         
         }
-        SetConsoleTextAttribute(hConsoleHandle, i32LogColorText);
-        std::cout << std::format(" {}::({}:{}:{}) ", typeCurrent, Time.x, Time.y, Time.z) << " [PahomEngine] " << text << std::endl;
-        SetConsoleTextAttribute(hConsoleHandle, 15);
+        //SetConsoleTextAttribute(hConsoleHandle, i32LogColorText);
+       // std::cout << std::format(" {}::({}:{}:{}) ", typeCurrent, Time.x, Time.y, Time.z) << " [PahomEngine] " << text << std::endl;
+        console.pout(std::format(" {}::({}:{}:{}) [PahomEngine] {}\n ", typeCurrent, Time.x, Time.y, Time.z, text),colorTexti32,colorBacki32,false,false);
+       // SetConsoleTextAttribute(hConsoleHandle, 15);
     }
     else {
         Event.WriteLog(std::format(" {}::({}:{}:{}) {}", typeCurrent, Time.x, Time.y, Time.z, text));
@@ -2299,6 +2363,11 @@ bool PahomEngineStruct::CheckColiision() {
         fPahomPosY + i64PahomSize[1] > fBreadPosY
         );
 }
+void PahomEngineStruct::setItemCenterX(float sizeText,float window_size_x) {
+    float fItemSizeX = sizeText;
+    float fItemXCenterPosition = (window_size_x - fItemSizeX) / 2;
+    ImGui::SetCursorPosX(fItemXCenterPosition);
+}
 void PahomEngineStruct::setItemCenterX(float x) {
     float fItemSizeX = x;
     float fItemXCenterPosition = (i64WindowSize[0] - fItemSizeX) / 2;
@@ -2333,10 +2402,7 @@ ImVec4  PahomEngineStruct::RGBA(ImVec4 col) {
     return outRGBA;
 }
 void PahomEngineStruct::logo() {
-    HANDLE hc = GetStdHandle(STD_OUTPUT_HANDLE);
-    static int64_t i64ColorCh = 0;
-    std::vector <std::string> array;
-    std::string PAHOM_ENGINE =
+    std::string_view PAHOM_ENGINE =
         " ______   ______     __  __     ______     __    __             \n"
         "/\\  == \\ /\\  __ \\   /\\ \\_\\ \\   /\\  __ \\   /\\ \"-./  \\            \n"
         "\\ \\  _-/ \\ \\  __ \\  \\ \\  __ \\  \\ \\ \\/\\ \\  \\ \\ \\-./\\ \\           \n"
@@ -2351,19 +2417,9 @@ void PahomEngineStruct::logo() {
         "                                                                \n";
     SetConsoleOutputCP(CP_UTF8);
     for (int64_t c = 0; c < PAHOM_ENGINE.size(); c++) {
-        array.push_back(std::string(1, PAHOM_ENGINE[c]));
-        if (array[c].empty() || array[c] == " ") {
-            SetConsoleTextAttribute(hc, 15);
-        }
-        else {
-            SetConsoleTextAttribute(hc, (c > (PAHOM_ENGINE.size() / 2) ? (rand() % 8 ) : 15));
-            i64ColorCh++;
-        }
-        std::cout << PAHOM_ENGINE[c];
+        console.pout(std::format("{}", PAHOM_ENGINE[c]), console.randColor(), ColorV3(19, 19, 22), true, false);
     }
-    // ���������� ���� �������
-    SetConsoleTextAttribute(hc, 7); // ����������� ���� (����� ����� �� ������ ����)
-    std::cout << "Colored:" << i64ColorCh << " LogoSize: " << PAHOM_ENGINE.size() << std::endl;
+    console.TestColors({12,12});
 }
 void PahomEngineStruct::stdoutColored(std::string out,int16_t i16colorText) {
     HANDLE hc = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -2391,7 +2447,7 @@ void PahomEngineStruct::progress_bar(float fragtion) {
     COORD nullcd = { 0,0 };
     HANDLE hcon = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleCursorPosition(hcon, nullcd);
-    std::string str_array[] = {
+    std::string_view str_array[] = {
         "[----------]",//0
         "[�---------]",//1
         "[��--------]",//2
@@ -2544,7 +2600,7 @@ namespace PE {
        //_STD vformat_to(_Fmt.get(), _STD make_format_args(_Args...));
     }
     template <class... Tm>
-    std::string ToString(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
+    std::string_view ToString(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
         return _STD vformat(_Fmt.get(), _STD make_format_args(_Args...));
         //_STD vformat_to(_Fmt.get(), _STD make_format_args(_Args...));
     }
