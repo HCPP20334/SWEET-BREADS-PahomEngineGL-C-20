@@ -15,13 +15,8 @@ static int              g_Width;
 static int              g_Height;
 ImVec4 clear_color = ImVec4(0.01f, 0.01f, 0.02f, 0.00f);
 
-// Forward declarations of helper functions
-bool CreateDeviceWGL(HWND hWnd, WGL_WindowData* data);
-void CleanupDeviceWGL(HWND hWnd, WGL_WindowData* data);
-
-//
-void ResetDeviceWGL();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 //
 uint64_t fMX = 0;
@@ -139,9 +134,10 @@ struct SettingsUIStruct
     bool bWindowAppBlur = false;
 };
 std::unique_ptr<SettingsUIStruct> SettingsUI = std::make_unique<SettingsUIStruct>();
-
+std::unique_ptr<window> backend = std::make_unique<window>();
 int main(int, char** argv)
 {
+    std::system("cls");
     if (PahomEngine) {
         std::cout << "PahomEngine "<<PahomEngine->sBuild << std::endl;
         PahomEngine->logo();
@@ -166,51 +162,23 @@ int main(int, char** argv)
         PahomEngine->log(" [module] Gamepad     OK", 3);
     }
      if (PahomEngine->img) {
-         PahomEngine->log(" [module] GLImage     OK", 3);
+         PahomEngine->log(" [module] GLImage    OK", 3);
     }
-  
-   // str_stack(&b_FatalError,"b_FatalError");
-    ImDrawListSplitter JEApp;
-    std::wstring WindowTitle = L"SWEET BREADS (PahomEngineGL_" + PahomEngine->sWBuild + L") Game_" + PahomEngine->sWBuildGame + L" CPP20_AMD64";
-    ImGui_ImplWin32_EnableDpiAwareness();
-    WNDCLASSEXW wc = { sizeof(wc), CS_OWNDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, WindowTitle.data(), nullptr};
-    wc.hIcon = LoadIconW(wc.hInstance, MAKEINTRESOURCEW(102));
-    ::RegisterClassExW(&wc);
-    HWND hwnd = ::CreateWindowW(wc.lpszClassName, WindowTitle.data(), WS_OVERLAPPEDWINDOW | WS_EX_TOOLWINDOW | WS_EX_NOPARENTNOTIFY, 100, 80, 800, 600, nullptr, nullptr, wc.hInstance, nullptr);
-   ::SetWindowLong(hwnd, GWL_STYLE, GetWindowLong(hwnd, GWL_STYLE) & ~WS_SIZEBOX);
-    if (!CreateDeviceWGL(hwnd, &g_MainWindow))
-    {
-        CleanupDeviceWGL(hwnd, &g_MainWindow);
-        ::DestroyWindow(hwnd);
-        ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
-        return 1;
-    }
-    wglMakeCurrent(g_MainWindow.hDC, g_hRC);
-    //
-    ::AnimateWindow(hwnd, 100, AW_BLEND);
-    //
-    ::UpdateWindow(hwnd);
-   
-    //
-    IMGUI_CHECKVERSION();
-    //
-    ImGui::CreateContext();
-    //
-    static     int64_t i64Cidx = 0;
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    int fTextSize = 20;
-    ImGui::StyleColorsDark();
-    ImGui_ImplWin32_InitForOpenGL(hwnd);
-    if (!ImGui_ImplOpenGL3_Init()) {
-        PahomEngine->log("[Fatal Error] OGL3 NOT SUPPORT ON YOU GPU");
-    }
-    else {
-       
-        PahomEngine->log("(OGL3)::InitToWIN32 OK!");
-      
-    }
-    io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 20.0f, nullptr, io.Fonts->GetGlyphRangesCyrillic());//
+     if (backend) {
+         PahomEngine->log(" [module] backend    OK", 3);
+     }
+     if (!backend) {
+         PahomEngine->log(" [module] backend    Fatal Error", 3);
+     }
+    backend->LoadResIcon(102);
+    backend->SetSize(int(PahomEngine->i64WindowSize[0]), int(PahomEngine->i64WindowSize[1]));
+    backend->setTitleText(L"SWEET BREADS "+PahomEngine->sWBuild+L" (CXX20) (MSVC)");
+    backend->createWindow(WndProc);
+    backend->EnableCustomRender(true);
+    backend->initDeviceGL();
+    backend->SetDarkStyle();
+    backend->initIO(&backend->io);
+    backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 20.0f, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());//
     struct STRGPUGL {
         std::string_view E_Brand = (const char*)glGetString(GL_VENDOR);
         std::string_view E_Model = (const char*)glGetString(GL_RENDERER);
@@ -241,8 +209,10 @@ int main(int, char** argv)
         "Kaban Films - 4403р   \n"
         "qxlydo - 2422р        \n"
         "Артём-е2п4ю - 2300р   \n"
+        "Lasti9k - 1400р       \n"
         "Dan Yabl - 20USD      \n"
         "Антон - 500р          \n"
+        "Imba - 500р           \n"
         "trqxxer - 400р        \n"
         "redder - 400р         \n"
         "Prosto_cheliik2 - 300р\n"
@@ -251,6 +221,7 @@ int main(int, char** argv)
         "Umbrella - 150р       \n"
         "PRi8etA - 120р        \n"
         "DIMA XP - 125         \n"
+        "Maya4ok_dev - ХУЙ!    \n"
         "kirillminecrafter- 100\n"
         "Intel HD Graphics- 100\n"
         "Igor Art - 100р       \n"
@@ -258,21 +229,29 @@ int main(int, char** argv)
         "Пук - 40р             \n"
         "xlink_1752 - 25р      \n"
         "Aman_Legend0 - 20р    \n";
-   int64_t i64DonatersBufferSize = 18;
+   int64_t i64DonatersBufferSize = 0;
+   bool donaters_parsed = false;
+   for (int c = 0; c < donaters.size(); c++) {
+       if (donaters[c] == '\n' && !donaters_parsed)
+       {
+           i64DonatersBufferSize++;
+       }
+   }
     bool main_logo = true;
     bool done = false;
     uint64_t a = 0; uint64_t b = 0;
     typedef int64_t* intptr64_t;
     uint64_t err = 0;
+    int64_t i64Cidx = 0;
     ImFontAtlas* fonts = ImGui::GetIO().Fonts;
-    ImFont* font15 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 30.0f, nullptr, io.Fonts->GetGlyphRangesCyrillic());
-    ImFont* font20 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 20.0f, nullptr, io.Fonts->GetGlyphRangesCyrillic());
-    ImFont* font3 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 15, nullptr, io.Fonts->GetGlyphRangesCyrillic());
-    ImFont* font10 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 10, nullptr, io.Fonts->GetGlyphRangesCyrillic());
-    ImFont* font35 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 25, nullptr, io.Fonts->GetGlyphRangesCyrillic());
-    ImFont* font27 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 21, nullptr, io.Fonts->GetGlyphRangesCyrillic());
-    ImFont* font50 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 40, nullptr, io.Fonts->GetGlyphRangesCyrillic());
-    ImFont* font54 = io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 41, nullptr, io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* font15 = backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 30.0f, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* font20 = backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 20.0f, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* font3  = backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 15, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* font10 = backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 10, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* font35 = backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 25, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* font27 = backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 21, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* font50 = backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 40, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* font54 = backend->io.Fonts->AddFontFromFileTTF("assets/BOUNDED.ttf", 41, nullptr, backend->io.Fonts->GetGlyphRangesCyrillic());
     if (!font15) {
         std::cout<<" [PahomEngine::Font] file assets/BOUNDED.ttf not found!" << std::endl;
     }
@@ -323,36 +302,21 @@ int main(int, char** argv)
    }
    bool bUpdateFrame = false;
    if (SettingsUI->bWindowAppBlur) {
-       ImGui::RenderBlur(hwnd);
+       ImGui::RenderBlur(backend->hwnd);
    }
-    while (!done)
+    while (backend->render)
     {
-        
+        backend->initIO(&backend->io);
         // Poll and handle messages (inputs, window resize, etc.)
         // See the WndProc() function below for our to dispatch events to the Win32 backend.
         PahomEngine->Exceptions->GetProcessMemoryUsage();
-        MSG msg;
-        while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
-        {
-            ::TranslateMessage(&msg);
-            ::DispatchMessage(&msg);
-            if (msg.message == WM_QUIT)
-                exit(0);
-            //  done = true;
-            if (msg.message == WM_DESTROY)
-                exit(0);
-        }
+        backend->NewFrame();
+        backend->getMessage();
 
-
+       
         if (done)
             break;
         SettingsUI->bWindowAppBlur ? PahomEngine->StyleLoadBlur() : PahomEngine->StyleLoad();
-        
-        // Start the Dear ImGui frame//
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-       
         static std::string sError;
         // cpu frame limiter begin part code
         if (PahomEngine->CVsync) {
@@ -368,8 +332,8 @@ int main(int, char** argv)
         } 
         // cpu frame limiter end part code
          // Set deltatime and framerate 
-        PahomEngine->fDeltaTime = io.DeltaTime * 100;
-        PahomEngine->fFrameRate = io.Framerate;
+        PahomEngine->fDeltaTime = backend->io.DeltaTime * 100;
+        PahomEngine->fFrameRate = backend->io.Framerate;
         static int64_t i64FrameRateInt = 0;
         //
         static float fColorAlpha = 0, fFadeChildFrame = 0;
@@ -532,10 +496,10 @@ int main(int, char** argv)
             ImGui::ImLine(500, 3, PahomEngine->RGBA(35, 35, 55, fColorAlpha));
             fLineMinPos = ImGui::GetItemRectMin().x;
             static float fMaxChildSizeY = 200;
-            fFadeChildFrame += 300 * io.DeltaTime;
+            fFadeChildFrame += 300 * backend->io.DeltaTime;
             if (fFadeChildFrame >= fMaxChildSizeY) {
                 fFadeChildFrame = fMaxChildSizeY;
-                fColorAlpha += 140 * io.DeltaTime;
+                fColorAlpha += 140 * backend->io.DeltaTime;
                 if (fColorAlpha >= 255.0f) {
                     fColorAlpha = 255.0f;
                 }
@@ -548,7 +512,7 @@ int main(int, char** argv)
 
                     ImGui::SetScrollY(fScrollChildFrame);
 
-                    fScrollChildFrame += 10 * io.DeltaTime;
+                    fScrollChildFrame += 10 * backend->io.DeltaTime;
                     fTextDonatersColor = {
                                 0,
                                 255,
@@ -572,8 +536,8 @@ int main(int, char** argv)
                 ImGui::OpenPopup("about");
             }
             Game->TestStyle(font3);
-            Game->fDeltaTime = io.DeltaTime;
-            Game->v2MousePos = io.MousePos;
+            Game->fDeltaTime = backend->io.DeltaTime;
+            Game->v2MousePos = backend->io.MousePos;
             Game->hCurrentHwnd = GetDesktopWindow();
             Game->ConsoleLog(font3);
             if (PahomEngine->getPressedKey('0', true) && !PahomEngine->getPressedKey('1', false) && !bFillingTestOpenGL) {
@@ -650,8 +614,8 @@ int main(int, char** argv)
                 static float fImagePreviewSize = PahomEngine->i64WindowSize[1] == 480 ? 128 : 256;
                 static bool bAudioPlay = false;
                 static int32_t i32DelayToHover = 0;
-                Game->DrawParticles(ImVec2(io.MousePos.x, io.MousePos.y),
-                    io.DeltaTime,
+                Game->DrawParticles(ImVec2(backend->io.MousePos.x, backend->io.MousePos.y),
+                    backend->io.DeltaTime,
                     1040,                    // макс. частиц
                     0.04f,                  // частота
                     PahomEngine->RGBA(255, 68, 0, 255), // цвет
@@ -955,15 +919,15 @@ int main(int, char** argv)
 
                                     PahomEngine->i64WindowSizeGL[0] = PahomEngine->i64WindowSizeGL[0];
                                     PahomEngine->i64WindowSizeGL[1] = PahomEngine->i64WindowSizeGL[1];
-                                    PahomEngine->i64WindowSize[0] = PahomEngine->HwndWSizeA(hwnd).x;
-                                    PahomEngine->i64WindowSize[1] = PahomEngine->HwndWSizeA(hwnd).y;
+                                    PahomEngine->i64WindowSize[0] = PahomEngine->HwndWSizeA(backend->hwnd).x;
+                                    PahomEngine->i64WindowSize[1] = PahomEngine->HwndWSizeA(backend->hwnd).y;
                                     PahomEngine->fStepMove = PahomEngine->pDiff->diffArray[PahomEngine->pDiff->i64id].i64buffer + 10;
                                     PahomEngine->fStep = PahomEngine->pDiff->diffArray[PahomEngine->pDiff->i64id].i64buffer1 + 10;
-                                    ShowWindow(hwnd, SW_SHOWMAXIMIZED);
+                                    ShowWindow(backend->hwnd, SW_SHOWMAXIMIZED);
 
                                 }
                                 else {
-                                    ShowWindow(hwnd, SW_SHOWNORMAL);
+                                    ShowWindow(backend->hwnd, SW_SHOWNORMAL);
                                     if (!PahomEngine->bRenderIsEdited)
                                     {
                                         PahomEngine->i64WindowSize[0] = 800;
@@ -978,7 +942,7 @@ int main(int, char** argv)
                                 ImGui::SetCursorPosX(30); if (ImGui::Button("Применить")) {
                                     PahomEngine->bRenderIsEdited = true;
                                     glViewport(0, 0, PahomEngine->i64WindowSizeGL[0], PahomEngine->i64WindowSizeGL[1]);
-                                    PahomEngine->SetSizeHWND(hwnd, PahomEngine->i64WindowSizeGL[0], PahomEngine->i64WindowSizeGL[1]);
+                                    PahomEngine->SetSizeHWND(backend->hwnd, PahomEngine->i64WindowSizeGL[0], PahomEngine->i64WindowSizeGL[1]);
                                     PahomEngine->i64WindowSize[0] = PahomEngine->i64WindowSizeGL[0];
                                     PahomEngine->i64WindowSize[1] = PahomEngine->i64WindowSizeGL[1];
                                     std::cout << std::format(" [PahomEngine] Edited\nset size window {} x {}\n max_pos_x: {} max_pos_y:{}\n min_pos_x: {} min_pos_y: {}\n", PahomEngine->i64WindowSize[0], PahomEngine->i64WindowSize[1], PahomEngine->fMaxPahomPosX, PahomEngine->fMaxPahomPosY, PahomEngine->fMinPahomPosX, PahomEngine->fMinPahomPosY);
@@ -1142,9 +1106,9 @@ int main(int, char** argv)
                                     ImGui::SetCursorPosY(50);
                                     ImGui::SetCursorPosX(30); ImGui::Text("PahomEngine подбирает оптимальные\nнастройки под ваше устройство");
                                     ImGui::SetCursorPosX(30);
-                                    ImGui::ProgressBar(io.Framerate / 60, ImVec2(320, 20));
+                                    ImGui::ProgressBar(backend->io.Framerate / 60, ImVec2(320, 20));
                                     ImGui::SameLine();
-                                    ImGui::Text("%.0f", io.Framerate);
+                                    ImGui::Text("%.0f", backend->io.Framerate);
 
         
                                     if (PahomEngine->fFrameRate < 60) {
@@ -1159,7 +1123,7 @@ int main(int, char** argv)
                                     ImGui::EndPopup();
                                 }
                                 ImGui::SetCursorPosX(30);
-                                PahomEngine->Text("FPS:{:.1f}/{} ms", io.Framerate, PahomEngine->i64CPUDelay);
+                                PahomEngine->Text("FPS:{:.1f}/{} ms", backend->io.Framerate, PahomEngine->i64CPUDelay);
                                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10);
                                 ImGui::SetCursorPosX(30); ImGui::SliderInt64("Время кадра", &PahomEngine->i64CPUDelay, 0, 100, "%lld ms", 0);
                                 ImGui::SetCursorPosX(30); if (ImGui::Button("Автонастройка", ImVec2(160, 30))) {
@@ -1317,6 +1281,7 @@ int main(int, char** argv)
                     
                                 
                                 PahomEngine->Event.mt_fill(PahomEngine->i64WindowSize[0], PahomEngine->i64WindowSize[1]);
+                                PahomEngine->ogl->Overlay(PahomEngine->i64WindowSize[0], PahomEngine->i64WindowSize[1]);
                                 PahomEngine->Event.isTextHidden = false;
                                 ImGui::PushFont(font50);
                                 ImGui::SetCursorPos(
@@ -1386,7 +1351,7 @@ int main(int, char** argv)
 
                         /*ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[2]), ImVec2(128, 128));*/
                         PahomEngine->img->CreateImage(PahomEngine->ImageData.TextureArray[2],
-                            io.DeltaTime, 
+                            backend->io.DeltaTime,
                             ImVec2{ PahomEngine->cast->cast_all<float>(PahomEngine->i64WindowSize[0]),PahomEngine->cast->cast_all<float>(PahomEngine->i64WindowSize[1])
                             }, ImVec2(256, 256));
                         ImGui::PushFont((PahomEngine->i64WindowSize[1] == 480 ? font20 : font54));
@@ -1410,7 +1375,7 @@ int main(int, char** argv)
                         //
 
                         if (PahomEngine->GetGamepadKey(XINPUT_GAMEPAD_DPAD_UP, 0) || PahomEngine->getPressedKey('W',true)) {
-                            fInputDelay += (40 * io.DeltaTime);
+                            fInputDelay += (40 * backend->io.DeltaTime);
                             if (fInputDelay >= 5.0f) {
                                 PahomEngine->audio.play(11);
                                 i32Item -= (1);
@@ -1421,7 +1386,7 @@ int main(int, char** argv)
                             }
                         }
                         if (PahomEngine->GetGamepadKey(XINPUT_GAMEPAD_DPAD_DOWN, 0) || PahomEngine->getPressedKey('S', true)) {
-                            fInputDelay += (40 * io.DeltaTime);
+                            fInputDelay += (40 * backend->io.DeltaTime);
                           //  PahomEngine->log(std::format("inputDelayOffset:{}", fInputDelay), 1);
                             if (fInputDelay >= 5.0f) {
                                 PahomEngine->audio.play(11);
@@ -1608,7 +1573,7 @@ int main(int, char** argv)
                         PahomEngine->selectedItem(i32Item == 3);
                         PahomEngine->setItemCenterX(280);
                         if (PahomEngine->UI->CustomButton(ImVec4(100, 171, 101, 255), ImVec4(7, 7, 7, 255), ImVec4(255, 255, 255, 255), 20, ImVec2(0, 0), "Выйти на Рабочий Стол", font3, ImVec2(280, 40))) {
-                            exit(666);
+                            backend->render = false;
                         }
                         ImGui::PushFont(font27);
                         PahomEngine->setItemCenterX(ImGui::CalcTextSize("Вверх - ").x
@@ -1762,7 +1727,7 @@ int main(int, char** argv)
                                 PahomEngine->setTextCenterXY(PahomEngine->Event.TextBufferStr.data());
                                 PahomEngine->Event.i64TimerEvent++;
                                 if (PahomEngine->Event.i64TimerEvent < 100) {
-                                    if (!PahomEngine->Event.isTextHidden)
+                                    if (!PahomEngine->Event.isTextHidden && !PahomEngine->bBoost777 || !PahomEngine->Event.isTextHidden && !PahomEngine->bKefir)
                                     {
                                         ImGui::TextColored(PahomEngine->RGBA(255, 255, 255, 255), "%s", PahomEngine->Event.TextBufferStr.data());
                                     }
@@ -1858,26 +1823,26 @@ int main(int, char** argv)
                                 ImGui::Text("Пауза - "); ImGui::SameLine(); PahomEngine->GamepadUI->GamepadButtonRender("SPACE", PahomEngine->RGBA(135, 135, 135, 255), PahomEngine->GamepadUI->GButtons->bGButtonSTART);
                             }
                             static ImVec4 colorTextToFrameRate = {};
-                            if (io.Framerate >= 60) {
+                            if (backend->io.Framerate >= 60) {
                                 colorTextToFrameRate = { 0,205,173,255 };
                             }
-                            if (io.Framerate <= 30) {
+                            else if (backend->io.Framerate <= 30) {
                                 colorTextToFrameRate = { 255,0,133,255 };
                             }
-                            if (io.Framerate <= 40) {
+                            else if (backend->io.Framerate <= 40) {
                                 colorTextToFrameRate = { 205,255,20,255 };
                             }
                             if (GetAsyncKeyState('G')) {
                                 PahomEngine->bKefir = true;
                             }
                             ImGui::SetCursorPos({ 30,ImGui::GetWindowSize().y - 60 });
-                            PahomEngine->TextColored(PahomEngine->RGBA(colorTextToFrameRate), "{:.1f}", io.Framerate);
+                            PahomEngine->TextColored(PahomEngine->RGBA(colorTextToFrameRate), "{:.1f}", backend->io.Framerate);
                             if (PahomEngine->bDebugText) {
                                 ImGui::SetCursorPosX(20);
                                 ImGui::SetCursorPosY(60);
                                 PahomEngine->TextColored(PahomEngine->RGBA(0,255,139,255),"frame_rate: {}\ndelta_time: {}\npos_pahom: {}.{} | pos_bread: {}.{}\nbuild: {}\nmem:{}",
                                     PahomEngine->fFrameRate,
-                                    io.DeltaTime,
+                                    backend->io.DeltaTime,
                                     PahomEngine->fPahomPosX,
                                     PahomEngine->fPahomPosY,
                                     PahomEngine->fBreadPosX,
@@ -1895,72 +1860,16 @@ int main(int, char** argv)
 
         ImGui::End();
 
-    // Rendering
-       
-        glViewport(0, 0, PahomEngine->i64WindowSizeGL[0], PahomEngine->i64WindowSizeGL[1]);
-        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        // Present
-        ::SwapBuffers(g_MainWindow.hDC);
+        backend->viewport();
 
     }
     PahomEngine->Exceptions->Cleanup();
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
-
-    CleanupDeviceWGL(hwnd, &g_MainWindow);
-    wglDeleteContext(g_hRC);
-    ::DestroyWindow(hwnd);
-    ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+    std::free(&PahomEngine->audio.audioDevice);
+    backend->shutdownDevice();
 
     return 0;
 }
 
-// Helper functions
-
-bool CreateDeviceWGL(HWND hWnd, WGL_WindowData* data)
-{
-    HDC hDc = ::GetDC(hWnd);
-    PIXELFORMATDESCRIPTOR pfd = { 0 };
-    pfd.nSize = sizeof(pfd);
-    pfd.nVersion = 3;
-    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    pfd.iPixelType = PFD_TYPE_RGBA;
-    pfd.cAlphaBits = 8;
-    pfd.cColorBits = 32;
-    bool bRenderOGL = !PahomEngine->Render->bIsUsedGLCustom ? true : false;
-    const int pf = ::ChoosePixelFormat(hDc, &pfd);
-    if (pf == 0)
-        return false;
-    if (::SetPixelFormat(hDc, pf, &pfd) == FALSE)
-        return false;
-    ::ReleaseDC(hWnd, hDc);
-
-    data->hDC = ::GetDC(hWnd);
-    if (!g_hRC)
-       g_hRC = CreateGL(data->hDC, PahomEngine->Render->gl_ver.major, PahomEngine->Render->gl_ver.minor);
-    PE::print(" PahomEngine ->(GPU) Load Custom OpenGL Driver {}.{}\n", PahomEngine->Render->gl_ver.major, PahomEngine->Render->gl_ver.minor);
-    return true;
-}
-
-void CleanupDeviceWGL(HWND hWnd, WGL_WindowData* data)
-{
-    wglMakeCurrent(nullptr, nullptr);
-    ::ReleaseDC(hWnd, data->hDC);
-}
-
-// Forward declare message handler from imgui_impl_win32.cpp
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
-// Win32 message handler
-// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))

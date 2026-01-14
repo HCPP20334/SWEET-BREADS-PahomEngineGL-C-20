@@ -1,4 +1,19 @@
+﻿#pragma once
 #include <GL/GL.h>
+#ifndef STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#endif
+
+#ifndef STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
+
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#include "stb_image_write.h"
+#pragma warning(pop)
+#include <iostream>
+#include <string>
 typedef HGLRC(WINAPI* PFNWGLCREATECONTEXTATTRIBSARBPROC) (HDC hDC, HGLRC hShareContext, const int* attribList);
 #define WGL_CONTEXT_MAJOR_VERSION_ARB             0x2091
 #define WGL_CONTEXT_MINOR_VERSION_ARB             0x2092
@@ -40,6 +55,9 @@ HGLRC CreateGL(HDC hDC, int major, int minor)
 #include <thread>
 #include <random>
 #include <format>
+#include <atomic>
+#include <fstream>
+#include <mutex>
 struct colorU32 {
     uint32_t r, g, b, a;
     colorU32() : r(0), g(0), b(0), a(0) {}
@@ -72,6 +90,7 @@ uint32_t ToU32(ImVec4 color) {
     ImVec4 col = { color.x * 255 ,color.y * 255,color.z * 255,color.w * 255 };
     return (((uint32_t)(col.w) << 24) | ((uint32_t)(col.z) << 16) | ((uint32_t)(col.y) << 8) | ((uint32_t)(col.x) << 0));
 }
+
 struct GLM {
     void Pen(int draw_x, int draw_y, colorU32 u32Color);
     void toU32Buffer(uint8_t* buffer_std);
@@ -88,17 +107,105 @@ struct GLM {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width_texture, height_texture, 0,
             GL_RGBA, GL_UNSIGNED_BYTE, pixel_buffer.data());
     }
-    // Set Size Texture to Pixel Buffer
+    void getCoordPixel(uint32_t x, uint32_t y) {
+        std::string buf = std::format("coord_pixelX:{}\ncoord_pixelY:{}", x, y);
+        std::ofstream coordImage("coord.wdt");
+        if (coordImage.is_open()) {
+            coordImage.write(buf.c_str(), buf.size());
+            coordImage.close();
+        }
+    }
+    void printImage() {
+        std::string suffix = "coord_pixelX:", suffix1 = "coord_pixelY:";
+        std::ifstream coordImage("coord.wdt", std::ios::binary);
+        std::string buffer_out;
+        int x_out = 0 ,y_out = 0;
+        coordImage.seekg(0, std::ios::end);
+        size_t size = coordImage.tellg();
+        coordImage.seekg(0, std::ios::beg);
+        coordImage.read(buffer_out.data(), size);
+        
+        if (buffer_out.rfind(suffix, 0) == 0) {
+            x_out = stoi(buffer_out.substr(suffix.length()));
+            SetPixel(x_out, y_out, colorU32(255, 255, 255, 244).get());
+        }
+        if (buffer_out.rfind(suffix1, 0) == 0) {
+            y_out = stoi(buffer_out.substr(suffix1.length()));
+            SetPixel(x_out, y_out, colorU32(255, 255, 255, 244).get());
+        }
+        coordImage.close();
+    }
+    void blurGausse(uint32_t x, uint32_t y) {
+        const uint32_t num_threads = std::jthread::hardware_concurrency();
+        std::vector<std::jthread> threads;
+        uint32_t stripe_height = y / num_threads;
+
+        for (uint32_t t = 0; t < num_threads; t++) {
+            uint32_t startY = t * stripe_height;
+            uint32_t endY = (t == num_threads - 1) ? y : startY + stripe_height;
+
+            threads.emplace_back([=, this] {
+               // unsigned int seed = (unsigned int)time(NULL) ^ t;
+
+                for (uint32_t fill_y = startY; fill_y < endY; fill_y++) {
+                    for (uint32_t fill_x = 0; fill_x < x; fill_x++) {
+                        uint32_t random_alpha = rand() % 155-100;
+                        uint32_t color_rand[] = {
+                            10,15,
+                            13,18,
+                            19,
+                            22,25,25
+                        };
+                        static int rd = 0;
+                        rd += 1;
+                        if (rd > std::size(color_rand)) {
+                            rd = 0;
+                        }
+                        SetPixel(fill_x, fill_y, colorU32{ color_rand[rd], color_rand[rd], color_rand[rd], random_alpha }.get());
+                    }
+                }
+                });
+        }
+    }
+    bool init = false;
+    void Overlay(int x ,int y) {
+      
+        if(!init)
+        {
+            SetSize(x, y);
+            InitTexture();
+            blurGausse(x, y);
+            init = true;
+        }
+        
+        ImGui::SetCursorPos({ 0,0 });
+        ImGui::Image(int64_t((void*)textureID), ImVec2(x, y));
+        UpdateTexture();
+ 
+    }
+    void SetRawPixelDataToFile(const std::string& filename) {
+        if (pixel_buffer.empty()) return;
+        std::ofstream outFile(filename, std::ios::binary);
+        std::cout << "Saving..  " << filename << std::endl;
+        outFile.write(reinterpret_cast<const char*>(pixel_buffer.data()),
+            pixel_buffer.size() * sizeof(uint32_t));
+        outFile.close();
+        std::cout << "Raw data saved to " << filename << std::endl;
+    }
     void SetSize(int w, int h) {
         width_texture = w;
         height_texture = h;
         pixel_buffer.resize(w * h);
         std::fill(pixel_buffer.begin(), pixel_buffer.end(), 255);
+        std::cout << " (PahomEngine::GLM) func: SetSize(int w, int h) :-> set pixel_buffer size " << width_texture << " x " << height_texture << std::endl;
+       
     }
     // Add Pixel to Pixel Buffer
     void SetPixel(int x, int y, uint32_t color) {
         if (x >= 0 && x < width_texture && y >= 0 && y < height_texture) {
             pixel_buffer[y * width_texture + x] = color;
+           // getCoordPixel(x, y);
+           // std::cout << " (PahomEngine::GLM) func: SetSize(int w, int h) :-> set pixel_buffer size " << width_texture << " x " << height_texture << std::endl;
         }
     }
     // segment code to not usuly
@@ -184,7 +291,11 @@ bool bSelectorTextureIsOpen = false;
     void swapTextures(GLuint* in, GLuint out) {
         *in = out;
     }
-
+    void savePng(std::string filename) {
+ 
+            stbi_write_png(filename.c_str(), width_texture, height_texture, 4, pixel_buffer.data(), width_texture * 4);
+            std::cout << " (PahomEngine::GLM) func: savePng(std::string_view filename,int x,int y)-> saved to "<<filename << " size: "<< width_texture << "x"<< height_texture << std::endl;
+    }
     void SelectTextureToSwapUI(GLuint* arrayTextures, size_t maxTextures,uint8_t** u8ptr_buffer) {
         int nLineImage = 0;
         static GLuint glTextureSwap;
@@ -215,6 +326,10 @@ bool bSelectorTextureIsOpen = false;
             ImGui::EndPopup();
         }
     }
+    void ImPosX(float x) {
+        ImGui::SetCursorPosX(x);
+    }
+    
     
 };
 void GLM::toU32Buffer(uint8_t* buffer_std) {
@@ -244,3 +359,4 @@ void FillBenchCPU(int iSizeX, int iSizeY,uint32_t tmax) {
     glpx.UpdateTexture();
     ImGui::End();
 }
+

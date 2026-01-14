@@ -1,4 +1,5 @@
-﻿#include "PahomEngine.h"
+﻿
+#include "PahomEngine.h"
 #include <shellapi.h>
 #define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 #define CRT_NO_WARNINGS 1
@@ -417,6 +418,9 @@ struct GameFrames {
                 }
                 // keyPresedStr = (const char*)("BACK" + PahomEngine->keyMap.u8BACK);
             }
+            if (GetAsyncKeyState('B')) {
+                PahomEngine->fScoreCount = 500;
+            }
             static bool bJump = false;
             static int32_t i32JumpKeyPresedCount = 0;
             if (bJump) {
@@ -564,6 +568,7 @@ struct GameFrames {
 
         }
     }
+   
     void MuteButton() {
         static int iMuted = 0;
         static bool isButtonHovered = false;
@@ -578,7 +583,7 @@ struct GameFrames {
             if (iMuted) {
                 PahomEngine->audio.Mute();
             }
-            else {
+            else if (!iMuted && PahomEngine->audio.audioDevice || !iMuted && PahomEngine->audio.audioDevice2 || !iMuted && PahomEngine->audio.audioDevice3) {
                 PahomEngine->audio.masterVolume = PahomEngine->audio.masterVolumeLast;
                 if (PahomEngine->audio.audioDevice) {
                     PahomEngine->audio.audioDevice.setVolume(PahomEngine->audio.masterVolume);
@@ -613,6 +618,7 @@ struct GameFrames {
         }
     };
     TimeAPI PETime;
+   
     void Editor() {
         PahomEngine->cast->bUsedStaticCast = true;
         ImGui::Begin("PERFOMANCE");
@@ -640,9 +646,13 @@ struct GameFrames {
         static ULARGE_INTEGER ul_kernel_old = { 0 };
         static ULARGE_INTEGER ul_user_old = { 0 };
         static float fcpu = 0.0f;
+        static float d0 = 0, d1 = 0;
         if (ImGui::RadioButton("CPUUsage", bCPUUsage)) {
             i32CPUUsageSwitch = !i32CPUUsageSwitch;
             bCPUUsage = i32CPUUsageSwitch != 0;
+        }
+        if (ImGui::Button("move array")) {
+            //PahomEngine->audio.cacheAudio(&PahomEngine->audio.audioDevice);
         }
         PahomEngine->Text("cpu_usage: {} %", fcpu);
         int totalSeconds = (int)ImGui::GetTime();
@@ -654,6 +664,13 @@ struct GameFrames {
         PahomEngine->Text("get_time: {:02}:{:02}:{:02}", iHour, iMinute, iSecond);
         ImGui::SpinnerBar("CPU", static_cast<float>(fcpu / 100), 20, 4,ImGui::GetColorU32(PahomEngine->RGBA(255,0,150,255)));
         randomKickBratishka();
+        if (PahomEngine->math->isValueTrue<float>(d0, 800)) {
+            d0 = 0;
+        }
+        else {
+            d0++;
+        }
+        PahomEngine->Text("test isValueTrue({},800)->", d0, PahomEngine->math->isValueTrue<float>(d0, 800));
         if (bCPUUsage) {
            
             ULARGE_INTEGER ul_idle_new, ul_kernel_new, ul_user_new;
@@ -722,6 +739,7 @@ struct GameFrames {
        
         
     }
+    
     void KefirEvent(int image_id) {
         static float fImageKefirOpacity = 0; static bool isReversed = false;
         static ImVec4 color = { 255,255,255,fImageKefirOpacity };
@@ -824,7 +842,6 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
     static float fPlayerUserSoundVolumeOffset = 0.02f;
     static std::string sOpenFile;
     static bool bPlayerUserSound = false, bFileOpened = false;
-    std::unique_ptr ptr = std::move(PahomEngine->ptrGamepad1);
     if (!bPahomEngineTextureEditor && bPahomEngineAudioEditor) {
         ImGui::Begin("AudioEditor", &bPahomEngineAudioEditor, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 
@@ -946,6 +963,27 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
             PahomEngine->ogl->SelectTextureToSwapUI(PahomEngine->ImageData.TextureArray, 11, PahomEngine->ImageData.TextureBufferArray);
             ImGui::SetWindowPos({ 0,0 });
             ImGui::SetWindowSize(sizeMax);
+            
+            static std::string sImageSaveFile = "image.png";
+            if (ImGui::BeginPopup("#save_image", ImGuiWindowFlags_NoTitleBar)) {
+                ImGui::Text("Сохранение файла");
+                ImGui::Separator();
+                ImGui::InputText("Путь", &sImageSaveFile);
+                ImGui::Text("Размер: %d x %d", PahomEngine->ogl->width_texture, PahomEngine->ogl->height_texture);
+                if (ImGui::Button("Сохранить", { 150, 30 })) {
+                    PahomEngine->ogl->savePng(sImageSaveFile);
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Отмена", { 150, 30 })) {
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Raw copy")) {
+                    PahomEngine->ogl->SetRawPixelDataToFile(sImageSaveFile);
+                }
+                ImGui::EndPopup();
+            }
             if (ImGui::BeginPopup("set_cpu_test", ImGuiWindowFlags_NoTitleBar)) {
                 bFillingTestOpenGL = true;
                 static int x = 320, y = 240;
@@ -991,7 +1029,7 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
             PahomEngine->Text("alloc_texture_size:{} | x:{} y:{} color:{}", PahomEngine->ogl->pixel_buffer.size(), PahomEngine->ogl->width_texture, PahomEngine->ogl->height_texture, colors.toStringView());
 
             if (ImGui::Button("Нарисовать Квадрат\n(использует многопоток)", { 150,50 })) {
-                PahomEngine->ogl->fillSqware(1920, 1080, true);
+                PahomEngine->ogl->fillSqware(512, 512, true);
             }
 
             ImGui::SameLine();
@@ -1016,15 +1054,24 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
             colors = colorU32(static_cast<uint32_t>(colorIv4.x * 255), static_cast<uint32_t>(colorIv4.y * 255), static_cast<uint32_t>(colorIv4.z * 255), 255);
             currentColorU32 = colors.get();
             //
+           
             ImGui::SameLine();
             if (ImGui::Button("Ластик", { 100,40 })) {
                 bEraseColors = !bEraseColors;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Вставить", { 100,40 })) {
+                PahomEngine->ogl->printImage();
             }
             ImGui::SameLine();
             if (ImGui::Button("X", { 40,40 })) {
                 
                 bPahomEngineTextureEditor= false;
                 PahomEngine->Event.bTextureEditor = false;
+            }
+            PahomEngine->setItemCenterX(150, ImGui::GetWindowSize().x);
+            if (ImGui::Button("Сохранить в (*.png)", { 150,30 })) {
+                ImGui::OpenPopup("#save_image");
             }
             ImGui::SliderInt64("Толщина", &PahomEngine->ogl->i64BrushSize, 1, 100, "%lld", 0);
             ImGui::SetCursorPos({
@@ -1038,15 +1085,16 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
             ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ogl->textureID), { 512,512 }, { 0,0 }, { 1,1 }, { 1,1,1,1 }, { 1,1,1,1 });
             /* PahomEngine->setItemCenterX(ImGui::CalcTextSize(std::format("colorHEX: {}", colors.HEX()).c_str()).x,ImGui::GetWindowSize().x);
              PahomEngine->Text("colorHEX: {}", colors.HEX());*/
+            
             ImVec2 rectTex = ImGui::GetItemRectMin();
             ImVec2 rectMax = ImGui::GetItemRectMax();
             if (ImGui::IsItemHovered()) // Проверяем, наведен ли курсор на текстуру
             {
                 ImVec2 canvas_pos = rectTex; // Позиция текстуры на экране
-                ImVec2 mouse_pos = ImGui::GetIO().MousePos;  // Абсолютная позиция мыши
+                ImVec2 mouse_pos = ImGui::GetIO().MousePos;// Абсолютная позиция мыши
 
-                int draw_x = static_cast<int>(mouse_pos.x - canvas_pos.x);
-                int draw_y = static_cast<int>(mouse_pos.y - canvas_pos.y);
+               int draw_x = static_cast<int>(mouse_pos.x - canvas_pos.x);
+               int draw_y = static_cast<int>(mouse_pos.y - canvas_pos.y);
                 if (draw_x >= 0 && draw_x < rectMax.x && draw_y >= 0 && draw_y < rectMax.y) {
                     int brush_size = PahomEngine->ogl->i64BrushSize;
                     int half_brush = brush_size / 2;
@@ -1057,6 +1105,7 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
                                 if (x >= 0 && x < PahomEngine->ogl->width_texture &&
                                     y >= 0 && y < PahomEngine->ogl->height_texture)
                                 {
+                                   // PahomEngine->ogl->getCoordPixel(x, y);
                                     PahomEngine->ogl->SetPixel(x, y, currentColorU32);
                                 }
                             }
@@ -1108,6 +1157,7 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
     PahomEngine->Text("UniVec2<std::string> Size: {} value: a{} b{}", stringVec2.size(), stringVec2.a, stringVec2.b);
     PahomEngine->Text("UniVec2<float> Size: {} value: a{} b{}", fVec2.size(), fVec2.a, fVec2.b);
     PahomEngine->Text("UniVec2<i64Vec2> Size: {} value: a{} b{}", i64Vec2.size(), i64Vec2.a, i64Vec2.b);
+
 }
 auto Game = std::make_unique<GameFrames>();
 
