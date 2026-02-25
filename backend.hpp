@@ -152,9 +152,10 @@ struct window {
         data->hDC = ::GetDC(hWnd);
         if (!g_hRC)
             g_hRC = bUseCustomRender ? CreateGL(data->hDC, gl_major, gl_minor) : wglCreateContext(data->hDC); // Используем стандартный или твой CreateGL
+        std::cout << std::format("(createDeviceWGL()) use_custom_render={} OpenGL{}.{}\n", bUseCustomRender, gl_major, gl_minor);
         return true;
     }
-    void EnableCustomRender(bool v, int minor = 3, int major = 3) {
+    void EnableCustomRender(bool v, int minor, int major) {
         bUseCustomRender = v;
         gl_major = major;
         gl_minor = minor;
@@ -178,7 +179,7 @@ struct window {
             if (msg.message == WM_QUIT || msg.message == WM_DESTROY)
             {
                 render = false;
-                std::cout << " (PahomEngine) render stop" << std::endl;
+                
             }
         }
     }
@@ -200,12 +201,12 @@ struct window {
         ::UpdateWindow(hwnd);
     }
 
-    void initDeviceGL() {
+    void initDeviceGL(const char* ccOGLver = "#version 330") {
         wglMakeCurrent(g_MainWindow.hDC, g_hRC);
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGui_ImplWin32_InitForOpenGL(hwnd);
-        ImGui_ImplOpenGL3_Init();
+        ImGui_ImplOpenGL3_Init(ccOGLver);
     }
 
     void NewFrame() {

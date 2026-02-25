@@ -3,6 +3,12 @@
 #include <shellapi.h>
 #define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 #define CRT_NO_WARNINGS 1
+struct test {
+    int a = 0;
+};
+auto a = PahomEngine->cio->alloc_ptr<test>();
+
+
 struct GameFrames {
     // game flags
 
@@ -10,6 +16,7 @@ struct GameFrames {
 
     //
     void randomKickBratishka();
+    void genParticles();
     void ShowEventTray(std::wstring text,HWND hwndGame = nullptr) {
         static int32_t i32TrayNoficationId = 0;
         NOTIFYICONDATA nid = {}; nid.cbSize = sizeof(NOTIFYICONDATA); nid.hWnd = hwndGame;
@@ -167,7 +174,7 @@ struct GameFrames {
     }
     void logo() {
         static float imageSizeX = 0;
-        static float imageSizeY = 0;
+        static float imageSizeY = 0, fa_text = 100;
         static bool bLogoEngineShow = false, revesed = false;
             static float fAlphaChannelLogo = 0;
             static int8_t i8audio2 = 0;
@@ -187,13 +194,15 @@ struct GameFrames {
                 if (fAlphaChannelLogo >= 255) {
                     PahomEngine->bStartGame = true;
                 }
+                
             }
             
             
         //  ImGui::Text(" ImageSize:% .1f: % .1f\nTimer: %i revesed:%s", imageSizeX, imageSizeY, fTimer, (revesed) ? ":true" : ":false");
         if(!revesed)
         {
-            static float fImageLogoAlpha = 0;
+            static float fImageLogoAlpha = 0, fPullButton = 0;
+            static bool bPresedButton = false;
             fImageLogoAlpha += 0.2f * ImGui::GetIO().DeltaTime;
             if (fImageLogoAlpha >= 1) {
                 fImageLogoAlpha = 1;
@@ -215,9 +224,34 @@ struct GameFrames {
                 revesed = true;
                 bLogoEngineShow = true;
             }
-            PahomEngine->Text("alpha_offset: {}\nimage_size (X: {},Y: {})\nframe_rate: {}\ndelta_time: {}", fImageLogoAlpha, imageSizeX, imageSizeY, ImGui::GetIO().Framerate, ImGui::GetIO().DeltaTime);
+            PahomEngine->Text("alpha_offset: {}\nimage_size (X: {},Y: {})\nframe_rate: {}\ndelta_time: {}\nfa_text:{}", fImageLogoAlpha, imageSizeX, imageSizeY, ImGui::GetIO().Framerate, ImGui::GetIO().DeltaTime, fa_text);
             PahomEngine->setItemCenter(ImVec2(imageSizeX, imageSizeY));
             ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[0]), ImVec2(imageSizeX, imageSizeY),{0,0},{1,1},{1,1,1,fImageLogoAlpha});
+            if (imageSizeX >= 64 && imageSizeY >= 64) {
+                fa_text += 100 * ImGui::GetIO().DeltaTime;
+                if (fa_text >= 255) {
+                    fa_text = 255;
+                }
+                PahomEngine->setItemCenterX(ImGui::CalcTextSize("Пропустить Зажми (START) или [SPACE]").x);
+                ImGui::SetCursorPosY((PahomEngine->i64WindowSize[1] - ImGui::CalcTextSize("Пропустить Зажми (START) или [SPACE]").y) - 128);
+                PahomEngine->TextColored(RGBA(133, (bPresedButton ? 255 : 133), 133, fa_text), "Пропустить Зажми (START) или [SPACE]");
+                PahomEngine->setItemCenterX(100);
+                ImGui::ProgressBar(fPullButton,{100,10},"");
+                if (PahomEngine->GetGamepadKey(XINPUT_GAMEPAD_START, 0) || PahomEngine->getPressedKey(VK_SPACE,true)) {
+                    fPullButton += 1 * ImGui::GetIO().DeltaTime;
+                    bPresedButton = true;
+                   // PahomEngine->log(std::format("fPullButton={:.0f}", fPullButton));
+                    if (fPullButton >= 1.0f) {
+                        bLogoEngineShow = true;
+                        fAlphaChannelLogo = 255;
+                        PahomEngine->bStartGame = true;
+                        revesed = true;
+                    }
+                }
+                else {
+                    bPresedButton = false;
+                }
+            }
         }
         ///
         PahomEngine->pDiff->i64id = 1;
@@ -228,52 +262,55 @@ struct GameFrames {
     }
     float fMinPosBread = (PahomEngine->i64BreadSize[1]);
     void randomEvents() {
-        if (!PahomEngine->bGameOver) {
-            if (bAntiGravitation) {
-                bool bSetMinPosBread = false;
-                if(!bSetMinPosBread)
-                {
-                    PahomEngine->fBreadPosY = PahomEngine->cast->cast_all<float>(PahomEngine->i64WindowSize[1] - PahomEngine->i64BreadSize[1]);
-                    bSetMinPosBread = true;
+        if(!PahomEngine->bRenderPaused)
+        {
+            if (!PahomEngine->bGameOver) {
+                if (bAntiGravitation) {
+                    bool bSetMinPosBread = false;
+                    if (!bSetMinPosBread)
+                    {
+                        PahomEngine->fBreadPosY = PahomEngine->cast->cast_all<float>(PahomEngine->i64WindowSize[1] - PahomEngine->i64BreadSize[1]);
+                        bSetMinPosBread = true;
+                    }
+                    PahomEngine->fBreadPosY -= PahomEngine->fStepMove * PahomEngine->fDeltaTime;
+                    if (PahomEngine->fBreadPosY <= fMinPosBread) {
+                        if (!PahomEngine->bKefir) {
+                            PahomEngine->fBreadPosX = 0;
+                            PahomEngine->fBreadPosY = 0;
+                            PahomEngine->reloadBreadPos();
+                            PahomEngine->bGameOver = true;
+                            PahomEngine->log(std::format("fMinPosBread: {:.1f}", fMinPosBread));
+
+                            PahomEngine->audio.play2(3);
+                        }
+                        if (PahomEngine->bKefir && PahomEngine->Event.bEnableKefir) {
+                            PahomEngine->fBreadPosX = 0;
+                            PahomEngine->fBreadPosY = 0;
+                            PahomEngine->reloadBreadPos();
+                        }
+
+
+                    }
                 }
-                PahomEngine->fBreadPosY -= PahomEngine->fStepMove * PahomEngine->fDeltaTime;
-                if (PahomEngine->fBreadPosY <= fMinPosBread) {
-                    if (!PahomEngine->bKefir) {
-                        PahomEngine->fBreadPosX = 0;
-                        PahomEngine->fBreadPosY = 0;
-                        PahomEngine->reloadBreadPos();
-                        PahomEngine->bGameOver = true;
-                        PahomEngine->log(std::format("fMinPosBread: {:.1f}", fMinPosBread));
+                else {
+                    PahomEngine->fBreadPosY += PahomEngine->fStepMove * PahomEngine->fDeltaTime;
+                    if (PahomEngine->fBreadPosY >= PahomEngine->fMaxPahomPosY) {
+                        if (!PahomEngine->bKefir) {
+                            PahomEngine->fBreadPosX = 0;
+                            PahomEngine->fBreadPosY = 0;
+                            PahomEngine->reloadBreadPos();
+                            PahomEngine->bGameOver = true;
 
-                        PahomEngine->audio.play2(3);
+                            PahomEngine->audio.play2(3);
+                        }
+                        if (PahomEngine->bKefir && PahomEngine->Event.bEnableKefir) {
+                            PahomEngine->fBreadPosX = 0;
+                            PahomEngine->fBreadPosY = 0;
+                            PahomEngine->reloadBreadPos();
+                        }
+
+
                     }
-                    else {
-                        PahomEngine->fBreadPosX = 0;
-                        PahomEngine->fBreadPosY = 0;
-                        PahomEngine->reloadBreadPos();
-                    }
-
-
-                }
-            }
-            else {
-                PahomEngine->fBreadPosY += PahomEngine->fStepMove * PahomEngine->fDeltaTime;
-                if (PahomEngine->fBreadPosY >= PahomEngine->fMaxPahomPosY) {
-                    if (!PahomEngine->bKefir) {
-                        PahomEngine->fBreadPosX = 0;
-                        PahomEngine->fBreadPosY = 0;
-                        PahomEngine->reloadBreadPos();
-                        PahomEngine->bGameOver = true;
-
-                        PahomEngine->audio.play2(3);
-                    }
-                    else {
-                        PahomEngine->fBreadPosX = 0;
-                        PahomEngine->fBreadPosY = 0;
-                        PahomEngine->reloadBreadPos();
-                    }
-
-
                 }
             }
             if (PahomEngine->getPressedKey('K', true)) {
@@ -299,42 +336,44 @@ struct GameFrames {
                 isVibrated = true;
                 PahomEngine->audio.play(0);
                 PahomEngine->reloadBreadPos();
-
-                PahomEngine->i64RandBoost = PahomEngine->rand64(100);
+                //genParticles();
+                PahomEngine->i64RandBoost = PahomEngine->math->random<int64_t>(100,false);
                 if (!PahomEngine->pDiff->bRandScoreDiff)
                 {
                     if (!PahomEngine->bKefir)
                     {
                         PahomEngine->fScoreCount += PahomEngine->bBoost777 ? 20 : 1;
                     }
-                    else {
+                    if(PahomEngine->bKefir && PahomEngine->Event.bEnableKefir){
                         PahomEngine->bGameOver = true;
                     }
                 }
                 else {
                     if (!PahomEngine->bKefir)
                     {
-                        PahomEngine->fScoreCount += PahomEngine->bBoost777 ? 20 : PahomEngine->rand64(100);
+                        PahomEngine->fScoreCount += PahomEngine->bBoost777 ? 20 : PahomEngine->math->random<int64_t>(100, false);
                     }
-                    else {
+                    if (PahomEngine->bKefir && PahomEngine->Event.bEnableKefir) {
                         PahomEngine->bGameOver = true;
                     }
                 }
-                PahomEngine->fBreadPosY = PahomEngine->randfloat(30.0f);
+                PahomEngine->fBreadPosY = PahomEngine->math->random<float>(30.0f, false);
                 if (PahomEngine->i64RandBoost < 6) {
                     if (!PahomEngine->bKefir)
                     {
                         PahomEngine->bBoost777 = true;
                     }
-                    PahomEngine->audio.play3(5);
+                    PahomEngine->audio.play3(12);
                 }
                 
-                if (PahomEngine->i64RandBoost < 4) {
+                if (PahomEngine->i64RandBoost < 4 && PahomEngine->Event.bEnableKefir) {
                     PahomEngine->reloadBreadPos();
-                    PahomEngine->bKefir = true;
+                    if (PahomEngine->Event.bEnableKefir) {
+                        PahomEngine->bKefir = true;
+                    }
                 }
                
-                if (PahomEngine->i64RandBoost < 25 && PahomEngine->fScoreCount > PahomEngine->rand64(100)) {
+                if (PahomEngine->i64RandBoost < 25 && PahomEngine->fScoreCount > PahomEngine->math->random<int64_t>(100, false)) {
                     PahomEngine->Event.bScreamEvent = true;
                 }
             }
@@ -500,7 +539,7 @@ struct GameFrames {
 
         //
         ImVec4 ColorGreen = ImVec4(100, 171, 101, 255);
-        cl_timer += 0.1f;
+        cl_timer += 10 * ImGui::GetIO().DeltaTime;
         if (cl_timer >= 0.3f) {
             cl_stop++;
             if (cl_stop >= 30) {
@@ -582,23 +621,27 @@ struct GameFrames {
             }
             if (iMuted) {
                 PahomEngine->audio.Mute();
+                PahomEngine->log(std::format("(audio) muted!"));
             }
-            else if (!iMuted && PahomEngine->audio.audioDevice || !iMuted && PahomEngine->audio.audioDevice2 || !iMuted && PahomEngine->audio.audioDevice3) {
-                PahomEngine->audio.masterVolume = PahomEngine->audio.masterVolumeLast;
+            if (!iMuted && PahomEngine->audio.audioDevice || !iMuted && PahomEngine->audio.audioDevice2 || !iMuted && PahomEngine->audio.audioDevice3) {
+                PahomEngine->audio.masterVolume = PahomEngine->PESettings->fMasterVolume;
                 if (PahomEngine->audio.audioDevice) {
                     PahomEngine->audio.audioDevice.setVolume(PahomEngine->audio.masterVolume);
                     PahomEngine->audio.audioDevice.play();
                 }
                 if (PahomEngine->audio.audioDevice2) {
                     PahomEngine->audio.audioDevice2.setVolume(PahomEngine->audio.masterVolume);
-                    if(PahomEngine->audio.sLastAudioFile[1] != PahomEngine->audio.audiolist[3])
+                   /* if(PahomEngine->audio.sLastAudioFile[1] != PahomEngine->audio.audiolist[3])
                     {
                         PahomEngine->audio.audioDevice2.play();
-                    }
+                    }*/
+                    PahomEngine->audio.audioDevice2.play();
                 }
                 if (PahomEngine->audio.audioDevice3) {
-                    PahomEngine->audio.audioDevice3.setVolume(PahomEngine->audio.masterVolume);
+                    PahomEngine->audio.audioDevice3.play();
                 }
+                PahomEngine->log(std::format("(audio) unmuted!"));
+
             }
             PahomEngine->audio.isAudioMuted = iMuted;
         }
@@ -773,6 +816,7 @@ struct GameFrames {
             color = { 255,255,255,fImageKefirOpacity };
             fImageKefirOpacity = 255;
         }
+       // genParticles();
         ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[image_id]), { 64,64 }, { 0,0 }, { 1, 1 }, PahomEngine->RGBA(color));
     }
     bool bDialog = false;
@@ -830,10 +874,20 @@ struct GameFrames {
          
             ImGui::End();
         }
+        
     }
-    
+   
    
 };
+void GameFrames::genParticles() {
+    for(int gen = 0; gen < 3; gen++)
+    {
+        float random = PahomEngine->math->random<float>(10);
+        ImVec2 size = { PahomEngine->math->random<float>(32) ,PahomEngine->math->random<float>(32) };
+        ImGui::SetCursorPos({ PahomEngine->fBreadPosX + random,PahomEngine->fBreadPosY });
+        ImGui::Image(PahomEngine->ImageData.GetImTexture(BREAD_IMAGE), size);
+    }
+}
 bool bFillingTestOpenGL = false;
 bool bPahomEngineAudioEditor = false;
 bool bPahomEngineTextureEditor = false;
@@ -1028,10 +1082,10 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
             }
             PahomEngine->Text("alloc_texture_size:{} | x:{} y:{} color:{}", PahomEngine->ogl->pixel_buffer.size(), PahomEngine->ogl->width_texture, PahomEngine->ogl->height_texture, colors.toStringView());
 
-            if (ImGui::Button("Нарисовать Квадрат\n(использует многопоток)", { 150,50 })) {
-                PahomEngine->ogl->fillSqware(512, 512, true);
+            if (ImGui::Button("gen noise", { 150,50 })) {
+                PahomEngine->ogl->noise(PahomEngine->cast->unicast<int64_t,uint32_t>(PahomEngine->i64WindowSize[0]), PahomEngine->cast->unicast<int64_t, uint32_t>(PahomEngine->i64WindowSize[1]));
             }
-
+            
             ImGui::SameLine();
             if (ImGui::Button("Создать\nИзображение", { 100,50 })) {
                 PahomEngine->ogl->SetSize(512, 512);
@@ -1145,18 +1199,17 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
         UniVec2<std::string> stringVec2 = { "ffdfd","assas" };// UniVec2 template vector to all same
         UniVec2<float> fVec2 = { 0.0f,55.0f };// UniVec2 template vector to all same
         UniVec2<int64_t> i64Vec2 = { 0L,55L };// UniVec2 template vector to all same
-        UniVec2<MultiVectors4V2> vc42 = {{ {220,330},{220,440},{550,220},{330,440}},{ {220,330},{220,440},{550,220},{330,440}}};// UniVec2 template vector to Multi-vector vec4
+        UniVec2<UniVec2<d64Vec2>> vc42 = { {{3.43543,5.3453} ,{5.453453,5.5656353}},{{3.52426532,5.564645353},{5.76762424,6.455434545}} };
+        d64Vec2 d64v2 = { 5.454354,4.21342 };
         d64Vec2 double64Vec2 = { 0.0444545454342,0.4555555555555 };// my vector to work double64_t MSVC C++ Compiler
         ColorV3 colorV3 = { 234,233,233 }; // tui.hpp my console lib to engine
     static int _step_value = 0;
     _step_value = 180;
+    
     ImGui::ImageRotated(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[PAHOM_IMAGE]), BratishkaSize, _step_value, {0,0}, {1,1}, {1,1,1,1}, {0,0,0,0});
-    PahomEngine->Text("MultiVector4V2 Size: {}", MtVec42.size());
-    PahomEngine->Text("MultiVector3V2 Size: {}", MtVec32.size());
-    PahomEngine->Text("MultiVector2V2 Size: {}", MtVec22.size());
-    PahomEngine->Text("UniVec2<std::string> Size: {} value: a{} b{}", stringVec2.size(), stringVec2.a, stringVec2.b);
-    PahomEngine->Text("UniVec2<float> Size: {} value: a{} b{}", fVec2.size(), fVec2.a, fVec2.b);
-    PahomEngine->Text("UniVec2<i64Vec2> Size: {} value: a{} b{}", i64Vec2.size(), i64Vec2.a, i64Vec2.b);
+    PahomEngine->Text("d64Vec2 size {} UniVec2<UniVec2<d64Vec2>> size: {}",d64v2.size(), vc42.size());
+    int64_t data2 = 654LL;
+    double64_t data = PahomEngine->cast->unicast<int64_t, double64_t>(data2);
 
 }
 auto Game = std::make_unique<GameFrames>();

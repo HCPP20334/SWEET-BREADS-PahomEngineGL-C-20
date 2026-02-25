@@ -616,7 +616,7 @@ bool CImage::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
     }
 }//
 struct KurlikAUDIO {
-    std::string audiolist[12] = { "assets/audio/kurlik.wav",
+    std::string audiolist[13] = { "assets/audio/kurlik.wav",
                                  "assets/audio/voda.wav",
                                  "assets/audio/intro.wav",
                                  "assets/audio/pidoras.wav",
@@ -627,8 +627,24 @@ struct KurlikAUDIO {
                                  "assets/audio/khuli-ty-govnom-to-vymazalsia.wav",
                                  "assets/audio/ponimaesh-chto-ty-poekhavshii.wav",
                                  "assets/audio/sound_game.wav",
-                                 "assets/audio/click.wav"
+                                 "assets/audio/click.wav",
+                                 "assets/audio/a.wav"
     };
+    std::string audiolist_low[13] = { "assets/audio/low/kurlik.wav",
+                                 "assets/audio/low/voda.mp3",
+                                 "assets/audio/low/intro.mp3",
+                                 "assets/audio/low/pidoras.mp3",
+                                 "assets/audio/low/mrrobot.mp3",
+                                 "assets/audio/low/pain100_1.mp3",
+                                 "assets/audio/low/smex.mp3",
+                                 "assets/audio/low/aaa.mp3",
+                                 "assets/audio/low/khuli-ty-govnom-to-vymazalsia.mp3",
+                                 "assets/audio/low/ponimaesh-chto-ty-poekhavshii.mp3",
+                                 "assets/audio/low/sound_game.mp3",
+                                 "assets/audio/low/click.mp3",
+                                 "assets/audio/low/a.mp3"
+    };
+    bool bUseLowAudioQuality = false;
     std::vector<std::string> musicFiles;
     bool FilesScanned = false;
     void play(int64_t i);
@@ -910,19 +926,19 @@ void KurlikAUDIO::VuePlay(int64_t idxd,int64_t idx) {
     switch (idxd)
     {
     case 0:
-        audioDevice.loadSound(audiolist[idx]);
+        audioDevice.loadSound(bUseLowAudioQuality ? audiolist_low[idx] : audiolist[idx]);
         audioDevice.play();
         audioDevice.setVolume(masterVolume);
         isDeviceActive = audioDevice.isPlaying();
         break;
     case 1:
-        audioDevice2.loadSound(audiolist[idx]);
+        audioDevice2.loadSound(bUseLowAudioQuality ? audiolist_low[idx] : audiolist[idx]);
         audioDevice2.play();
         audioDevice2.setVolume(masterVolume);
         isDeviceActive = audioDevice2.isPlaying();
         break;
     case 2:
-        audioDevice3.loadSound(audiolist[idx]);
+        audioDevice3.loadSound(bUseLowAudioQuality ? audiolist_low[idx] : audiolist[idx]);
         audioDevice3.play();
         audioDevice3.setVolume(masterVolume);
         isDeviceActive = audioDevice3.isPlaying();
@@ -932,7 +948,7 @@ void KurlikAUDIO::VuePlay(int64_t idxd,int64_t idx) {
 void KurlikAUDIO::play(int64_t i) {
   //  PlaySoundA(file.c_str(), NULL, 1);
     idx = i;
-    audioDevice.loadSound(audiolist[idx]);
+    audioDevice.loadSound(bUseLowAudioQuality ? audiolist_low[idx] : audiolist[idx]);
     audioDevice.play();
     audioDevice.setVolume(isAudioMuted ? 0 : masterVolume);
     isDeviceActive = audioDevice.isPlaying();
@@ -943,7 +959,7 @@ void KurlikAUDIO::play(int64_t i) {
 void KurlikAUDIO::play2(int64_t i) {
     //  PlaySoundA(file.c_str(), NULL, 1);
     idx = i;
-    audioDevice2.loadSound(audiolist[idx]);
+    audioDevice2.loadSound(bUseLowAudioQuality ? audiolist_low[idx] : audiolist[idx]);
     audioDevice2.play();
     audioDevice2.setVolume(isAudioMuted ? 0 : masterVolume);
     isDeviceActive = audioDevice2.isPlaying();
@@ -953,7 +969,7 @@ void KurlikAUDIO::play2(int64_t i) {
 void KurlikAUDIO::play3(int64_t i) {
     //  PlaySoundA(file.c_str(), NULL, 1);
     idx = i;
-    audioDevice3.loadSound(audiolist[idx]);
+    audioDevice3.loadSound(bUseLowAudioQuality ? audiolist_low[idx] : audiolist[idx]);
     audioDevice3.play();
     audioDevice3.setVolume(isAudioMuted ? 0 : masterVolume);
     isDeviceActive = audioDevice3.isPlaying();
@@ -1001,10 +1017,25 @@ struct STRINGSDATA {
 // 
 
 
-#define engine_bulid std::wstring(L"0.8.7 (pre-release)");
+#define engine_bulid std::wstring(L"0.9.00 (pre-release)");
 
 //
 struct ASSETSDATA {
+    std::string UltraTextures[12] = {
+                                "assets/ultramax/logo.png",   //0
+                                "assets/ultramax/back.png",   //1
+                                "assets/ultramax/bread.png",  //2
+                                "assets/ultramax/pahom.png",  //3
+                                "assets/ultramax/pahom2.png",  //4
+                                "assets/ultramax/panel.png",//5
+                                "assets/ultramax/777.png",//6
+                                "assets/ultramax/vilka.png",//7
+                                "assets/ultramax/kefir.png",//8
+                                "assets/ultramax/gortany.png",
+                                "assets/ultramax/cryptypahom.png",
+                                "assets/ultramax/PEngine.png"
+
+    };
     std::string asset[12] = { "assets/logo.png",   //0
                              "assets/back.jpg",   //1
                              "assets/bread.png",  //2
@@ -1018,8 +1049,21 @@ struct ASSETSDATA {
                              "assets/cryptypahom.png",
                              "assets/PEngine.png"
     }; //5
-
-
+    std::string asset_ultra_low[12] = 
+                            { "assets/low/logo.png",   //0
+                            "assets/low/back.jpg",   //1
+                            "assets/low/bread.png",  //2
+                            "assets/low/pahom.png",  //3
+                            "assets/low/pahom2.png",  //4
+                            "assets/low/panel.png",//5
+                            "assets/low/777.png",//6
+                            "assets/low/vilka.png",//7
+                            "assets/low/kefir.png",//8
+                            "assets/low/gortany.png",
+                            "assets/low/cryptypahom.png",
+                            "assets/low/PEngine.png"
+    }; //5
+    bool bUseLowTextures = false;
     bool validFiles(std::string_view file) {
         std::ifstream fileAssets(file.data());
         if (fileAssets.is_open()) {
@@ -1036,6 +1080,9 @@ struct IMAGEDATA {
     uint8_t* TextureBufferArray[256];
     int TextureX[256];
     int TextureY[256];
+    int64_t GetImTexture(int idx) const {
+        return reinterpret_cast<int64_t>(reinterpret_cast<void*>(this->TextureArray[idx]));
+    }
 };
 struct KEYMAPDATA {
     int8_t u8FORWARD = 'A';
@@ -1084,11 +1131,11 @@ struct MEMORYDATA {
             break;
         }
     }
-    std::string_view MemoryInfo() {
+    std::string MemoryInfo() {
         getData(&i64MemoryTotal, 1);
         getData(&i64MemoryFree , 2);
         getData(&i64MemoryUsed , 0);
-        std::string_view mem_str = 
+        std::string mem_str = 
             "Total:   " + std::to_string(i64MemoryTotal) + " GB"
             "\nUsed :   " + std::to_string(i64MemoryUsed)  + " GB"
             "\nFree :   " + std::to_string(i64MemoryFree)  + " GB";
@@ -1218,9 +1265,11 @@ struct GameEvent {
     bool bScreamEvent = false;
     bool bScreamEventBackground = false;
     bool bDemoPlay = false;
+    bool bEnableKefir = false;
     bool bKefirFriend = false;
     int32_t i32ReverseImage = -1;
     bool AutoScaleImage = false;
+    bool bShowNoiseBackground = false;
 };
 std::string_view logoPahom =
 " %%%%%%  %%%%%  %%%  %%%   %%%   %%%    %%%\n"
@@ -1258,7 +1307,7 @@ struct EXCEPTIONS {
         PROCESS_MEMORY_COUNTERS pmc;
         pmc.cb = sizeof(pmc);
         GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-        i64MemoryUsageProcess=   pmc.WorkingSetSize;
+        i64MemoryUsageProcess = static_cast<int64_t>(pmc.WorkingSetSize);
     }
     void Write(const std::string& t, void* pErrorSegment) {
         ErrorTextures = true;
@@ -1804,11 +1853,11 @@ struct GamepadButtons {
 
 struct PahomEngineStruct {
     //
-    std::string sBuild = "0.8.7 (pre-release)";
-    std::string sBuildGame = "0.8.7 (pre-release)";
+    std::string sBuild = "0.9.00 (pre-release)";
+    std::string sBuildGame = "0.9.00 (pre-release)";
     //
-    std::wstring sWBuild = L"0.8.7 (pre-release)";
-    std::wstring sWBuildGame = L"0.8.7 (pre-release)";
+    std::wstring sWBuild = L"0.9.00 (pre-release)";
+    std::wstring sWBuildGame = L"0.9.00 (pre-release)";
     //
     bool CVsync = true;
     uint64_t fCPoint = 0;
@@ -1833,14 +1882,21 @@ struct PahomEngineStruct {
         std::string controls_atr[2] = {"bind_key_left=","bind_key_right="};
         std::string glversion[2] = { "gl_major=" ,"gl_minor=" };
         int8_t u8BindKeyRight = 'D', u8BindKeyLeft = 'A';
+        std::string res[2] = { "width=","height=" };
+        int iPresetID = 0;
+        int64_t i64WindowSize[2] = { 0,0 };
         float fMasterVolume = 0;
         int64_t i64CPUDelay = 0;
         int minor_gl = 0, major_gl = 0;
         bool bUseCustomRender = false;
+        bool bShowNoiseBackground = false;
         bool bFlagVsync = false, bFlagRandomEngine = false;
         bool bKeyLDetected = false, bKeyRDetected = false;
         bool bRenderBlur = false;
         bool bFlagEnableAnimationToImageFadeInOut = false;
+        bool bUseLowTextures = false;
+        bool bUseLowAudioQuality = false;
+        std::string preset_ = "preset=";
         void ParseConfig() {
             std::ifstream PahomEngineSettings("PahomEngine.cfg");
             if (PahomEngineSettings.is_open()) {
@@ -1876,6 +1932,15 @@ struct PahomEngineStruct {
                         bKeyRDetected = true;
                         u8BindKeyRight = static_cast<int8_t>(stoi(sSettingsBufferString.substr(controls_atr[1].length())));
                     }
+                    if (sSettingsBufferString.rfind(res[0], 0) == 0) {
+                        i64WindowSize[0] = stoll(sSettingsBufferString.substr(res[0].length()));
+                    }
+                    if (sSettingsBufferString.rfind(res[1], 0) == 0) {
+                        i64WindowSize[1] = stoll(sSettingsBufferString.substr(res[1].length()));
+                    }
+                    if (sSettingsBufferString.rfind(preset_, 0) == 0) {
+                        iPresetID = stoi(sSettingsBufferString.substr(preset_.length()));
+                    }
                     if (sSettingsBufferString == "render_blur=true") {
                         bRenderBlur = true;
                     }
@@ -1896,9 +1961,44 @@ struct PahomEngineStruct {
                     }
                     if (sSettingsBufferString.rfind(glversion[0], 0) == 0) {
                         major_gl = (stoi(sSettingsBufferString.substr(glversion[0].length())));
+                        /*if (major_gl < 3) {
+                            major_gl = 3;
+                            std::cout << " (PahomEngine) gl_major not < 3\n";
+                        }*/
+
                     }
                     if (sSettingsBufferString.rfind(glversion[1], 0) == 0) {
                         minor_gl = (stoi(sSettingsBufferString.substr(glversion[1].length())));
+                        /*if (minor_gl < 3) {
+                            minor_gl = 3;
+                            std::cout << " (PahomEngine) gl_minor not < 3\n";
+                        }*/
+                    }
+                    if (sSettingsBufferString == "noise=true") {
+                        bShowNoiseBackground = true;
+                        //Pengine.log("PESettings:: Применен vsync=true", 1);
+                    }
+                    if (sSettingsBufferString == "noise=false") {
+                        bShowNoiseBackground = false;
+                        //Pengine.log("PESettings:: Применен vsync=false", 1);
+                    }
+                    //use_low_textures=
+                    if (sSettingsBufferString == "use_low_textures=true") {
+                        bUseLowTextures = true;
+                        //Pengine.log("PESettings:: Применен vsync=true", 1);
+                    }
+                    if (sSettingsBufferString == "use_low_textures=false") {
+                        bUseLowTextures = false;
+                        //Pengine.log("PESettings:: Применен vsync=false", 1);
+                    }
+                    //use_low_textures=
+                    if (sSettingsBufferString == "use_low_audio_quality=true") {
+                        bUseLowAudioQuality = true;
+                        //Pengine.log("PESettings:: Применен vsync=true", 1);
+                    }
+                    if (sSettingsBufferString == "use_low_audio_quality=false") {
+                        bUseLowAudioQuality = false;
+                        //Pengine.log("PESettings:: Применен vsync=false", 1);
                     }
                 }
             }
@@ -1912,7 +2012,9 @@ struct PahomEngineStruct {
     };
     std::unique_ptr<GameSettingsOffsets> PESettings = std::make_unique<GameSettingsOffsets>();
     struct mathValues {
-        
+        std::random_device rd;
+        std::mt19937 gen;
+        bool bIsRandomEngineUsed = true;
         template <typename Tm>
         Tm minv(Tm a, Tm b) {
             return std::min<Tm>(a, b);
@@ -1923,8 +2025,9 @@ struct PahomEngineStruct {
         }
         template <typename Tm>
         Tm abs(Tm x) {
-            std::abs(x);
+            return std::abs(x);
         }
+        // test func
         template <typename Tm>
         Tm fade_add(Tm *x, Tm interval, Tm max_interval,Tm add_part_count) {
             static Tm a = 0;
@@ -1936,7 +2039,8 @@ struct PahomEngineStruct {
             }
             return *x;   
         }
-        template <typename T>
+        // my find func
+       /* template <typename T>
         std::string_view find(T str, T sub)
         {
             std::string_view str_buf = std::to_string(str);
@@ -1948,7 +2052,8 @@ struct PahomEngineStruct {
             }
 
             return buf;
-        }
+        }*/
+        // find V test func
         bool findV(int64_t v, int64_t find_v) {
             std::string_view strBuffer = std::format("{}", v);
             int32_t sizeBuffer = strBuffer.size();
@@ -1958,27 +2063,39 @@ struct PahomEngineStruct {
                 }
             }  
         }
-        
+        // set flag to use random engine e.d random_device to #include <random>
+        // in true ||  false
+        // - true -- enable random_device and std::mt19997
+        // - false -- disable random_device random use C rand();
+        void setRandomEngineUsed(bool v) {
+            bIsRandomEngineUsed = v;
+            //std::cout << " (random_engine) enabled: " << (bIsRandomEngineUsed ? "true\n" : "false\n");
+        }
+        // random engine func 
+        // use: PahomEngine->math->random<type>(max_value,isCached);
+        // sample:
+        // int64_t i64ValueRandom = PahomEngine->math->random<int64_t>(255,false);
         template <typename Tm>
         Tm random(Tm value_max, bool bIsUseCachedRandom = false) {
-            PahomEngineStruct Engine; // не придумал ничего лучше хуйни)
-            if(Engine.bIsRandomEngineUsed)
+            if(bIsRandomEngineUsed)
             {
                 if (!bIsUseCachedRandom)
                 {
-                    std::random_device rd;
-                    std::mt19937 gen(rd());
+
+                    std::random_device rd_no_cached;
+                    std::mt19937 gen_no_cached(rd_no_cached());
+                    
                     if constexpr (std::is_floating_point_v<Tm>) {
                         std::uniform_real_distribution<Tm> dist(0, value_max);
-                        return dist(gen);
+                        return dist(gen_no_cached);
                     }
                     else {
                         std::uniform_int_distribution<Tm> dist(0, value_max);
-                        return dist(gen);
+                        return dist(gen_no_cached);
                     }
                 }
                 else {
-                    std::mt19937 gen(Engine.rd());
+                    gen.seed(rd());
                     if constexpr (std::is_floating_point_v<Tm>) {
                         std::uniform_real_distribution<Tm> dist(0, value_max);
                         return dist(gen);
@@ -2044,14 +2161,17 @@ struct PahomEngineStruct {
         }
     };
     struct bufferio {
+        
         template <class... Tm>
         void print(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
           std::cout<< _STD vformat(_Fmt.get(), _STD make_format_args(_Args...));
         }
-        /// хуета не рабочая!! не использовать
-        template <typename AllocatorName, typename MemoryObject>
-        void alloc_ptr() {
-            std::unique_ptr<AllocatorName> MemoryObject = std::make_unique<AllocatorName>();
+        /// custom allocator Memory
+        template <typename alc>
+        using Uptr = std::unique_ptr<alc>;
+        template <typename alc>
+        Uptr<alc> alloc_ptr() {
+            return std::make_unique<alc>();
         }
     };
     struct gpuRenderOGL {
@@ -2097,6 +2217,7 @@ struct PahomEngineStruct {
     void StyleLoadBlur();
     ImVec4 RGBA(float r, float g, float b, float a);
     ImVec4 RGBA(ImVec4 col);
+    ImVec4 ToRGBA(std::string hex);
     void setTextCenter(const char* text);
     void setItemCenterX(float x);
     void setItemCenter(ImVec2 Size);
@@ -2126,6 +2247,7 @@ struct PahomEngineStruct {
     int64_t i64WindowSize[2] = { 800 , 600 };
     int64_t i64WindowSizeGL[2] = { 800 , 600 };
     int64_t i64ScaleRender = 10;
+    std::string sGraphPreset;
     float fPahomPosX = 0;
     float fPahomPosY = 0;
     float fMaxPahomPosX = static_cast<float>(i64WindowSize[0]) - 128.0f;
@@ -2167,6 +2289,8 @@ struct PahomEngineStruct {
     bool bBoost777 = false;
     bool bKefir = false;
     bool bIsImGuiAGamepadAPIUsed = false;
+    bool bColoredConsole = false;
+    bool bRenderPaused = false;
     int64_t i64RandBoost = 0;
     int64_t i64ValuesRands[4] = { 50 , 100, 256, 777 };
     HANDLE hConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -2175,10 +2299,96 @@ struct PahomEngineStruct {
     void log(std::string text, int iLogTypeFlags);
     void Tbuffer();
     void logo();
+    //
+    int iLoadData = 0;
+    int iReloadTexturesPresetID = 0;
+    std::string sTexturePresetName = "";
+    void SetPresetName(int id) {
+        std::string str[] = { "Низкие" ,"Высокие" ,"Ультра" };
+        sTexturePresetName = str[id];
+    }
+    void ReloadTextures(int preset_id) {
+        int64_t i64Size = 0;
+
+        // clear video memory
+        for (int _textures = 0; _textures < std::size(assets.asset); _textures++) {
+            log(std::format(" (OGL) clearing.. {}", _textures), 1);
+            glDeleteTextures(_textures, ImageData.TextureArray);
+        }
+        // low settings
+        if(preset_id == 0){
+            
+            log(" (OGL) set preset LOW", 1);
+            for (int _textures_ld = 0; _textures_ld < std::size(assets.asset_ultra_low); _textures_ld++) {
+                log(std::format(" (OGL) Loading.. {} {}", _textures_ld, (assets.asset_ultra_low[_textures_ld])), 1);
+                if (img->LoadTextureFromFile(reinterpret_cast<const char*>(assets.asset_ultra_low[_textures_ld].data()),
+                    &ImageData.TextureArray[_textures_ld],
+                    &ImageData.TextureX[_textures_ld],
+                    &ImageData.TextureY[_textures_ld],
+                    ImageData.TextureBufferArray[_textures_ld]);
+                    i64Size += (ImageData.TextureX[_textures_ld] * ImageData.TextureY[_textures_ld] * 4)) {
+                    log(std::format(" (OGL) loaded_buffer {} MB", (i64Size / 1024) / 1024), 1);
+                }
+                else {
+                    log(std::format(" (OGL) loaded_buffer {} MB error", (i64Size / 1024) / 1024), 1);
+                }
+                //*data = _textures_ld;
+            }
+
+             
+        }
+        // high settings
+        if (preset_id == 1) {
+            log(" (OGL) set preset HIGH", 1);
+            for (int _textures_ld = 0; _textures_ld < std::size(assets.asset); _textures_ld++) {
+                log(std::format(" (OGL) Loading.. {} {}", _textures_ld, (assets.asset[_textures_ld])), 1);
+                if (img->LoadTextureFromFile(reinterpret_cast<const char*>(assets.asset[_textures_ld].data()),
+                    &ImageData.TextureArray[_textures_ld],
+                    &ImageData.TextureX[_textures_ld],
+                    &ImageData.TextureY[_textures_ld],
+                    ImageData.TextureBufferArray[_textures_ld]);
+                    i64Size += (ImageData.TextureX[_textures_ld] * ImageData.TextureY[_textures_ld] * 4)) {
+                    log(std::format(" (OGL) loaded_buffer {} MB", (i64Size / 1024) / 1024), 1);
+                }
+                else {
+                    log(std::format(" (OGL) loaded_buffer {} MB error", (i64Size / 1024) / 1024), 1);
+                }
+                //*data = _textures_ld;
+            }
+
+
+        }
+        // ultra settings
+        if (preset_id == 2) {
+            int64_t i64Size = 0;
+            
+
+            for (int _textures_ld = 0; _textures_ld < std::size(assets.UltraTextures); _textures_ld++) {
+                log(std::format(" (OGL) (preset: ultra_max:) Loading.. {} {}", _textures_ld, assets.UltraTextures[_textures_ld]), 1);
+                if (img->LoadTextureFromFile(reinterpret_cast<const char*>(assets.UltraTextures[_textures_ld].data()),
+                    &ImageData.TextureArray[_textures_ld],
+                    &ImageData.TextureX[_textures_ld],
+                    &ImageData.TextureY[_textures_ld],
+                    ImageData.TextureBufferArray[_textures_ld]);
+                    i64Size += (ImageData.TextureX[_textures_ld] * ImageData.TextureY[_textures_ld] * 4)) {
+                    log(std::format(" (OGL) loaded_buffer {} MB", (i64Size / 1024) / 1024), 1);
+                }
+                else {
+                    log(std::format(" (OGL) loaded_buffer {} MB error", (i64Size / 1024) / 1024), 1);
+                }
+
+               // *data = _textures_ld;
+            }
+
+
+        }
+    }
+   
     void progress_bar(float fragtion);
     bool getPressedKey(int8_t key, bool isTurned = false) {
         return (isTurned ? GetAsyncKeyState(key) : GetKeyState(key) > 0);
     }
+
     void setTextCenterXY(const char* text);
     int64_t ptrint64_t(GLuint tx) {
         return reinterpret_cast<int64_t>(reinterpret_cast<void*>(tx));
@@ -2208,6 +2418,20 @@ void PahomEngineStruct::selectedItem(bool v,float rounding = 20) {
         dw->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(RGBA(255, 255, 255, 255)), rounding, 0,3);
     }
 }
+//add hex to rgba @finich_15
+//use : PahomEngine->ToRGBA("#dfddfdff") & PahomEngine->ToRGBA("#dfddfd")
+ImVec4 PahomEngineStruct::ToRGBA(std::string hex) { // hex  = #ffffffff
+    std::string hex0 = hex.substr(1, 2); // ff
+    std::string hex1 = hex.substr(3, 2); // ff
+    std::string hex2 = hex.substr(5, 2); // ff
+    std::string hex3 = hex.size() == 8 ? hex.substr(7, 2) : "00"; // ff
+    return ImVec4{
+         (float)(stoi(hex0,nullptr,16)) / 255,
+         (float)(stoi(hex1,nullptr,16)) / 255,
+         (float)(stoi(hex2,nullptr,16)) / 255,
+         (float)(stoi(hex3,nullptr,16)) / 255
+    };
+}
 void PahomEngineStruct::clearPos() {
     fPahomPosX = 0;
     fPahomPosY = 0;
@@ -2224,6 +2448,8 @@ void  PahomEngineStruct::log(std::string text,int iLogTypeFlags = 1) {
     auto now = std::chrono::system_clock::now();
     std::time_t t = std::chrono::system_clock::to_time_t(now);
     std::tm* local_tm = std::localtime(&t);
+
+    int32_t i32LogColorText = 0;
     bLogEnabled = true;
     std::vector<std::string_view> typeStr = {
         "WARN",
@@ -2249,24 +2475,35 @@ void  PahomEngineStruct::log(std::string text,int iLogTypeFlags = 1) {
         case type::WARN: 
             colorTexti32 = { 200,250,0 };
             colorBacki32 = { 12,12,19 };
+            i32LogColorText = 15;
             break;
         case type::INFO:
             colorBacki32 = { 32,32,49 };
             colorTexti32 = { 56,106,253 };
+            i32LogColorText = 11;
             break;
         case type::ERR:
             colorBacki32 = { 12,12,19 };
             colorTexti32 = { 250,0,140 };
+            i32LogColorText = 12;
             break;
         case type::DEBUG:
             colorBacki32 = { 12,12,19 };
             colorTexti32 = { 0,255,100 };
+            i32LogColorText = 10;
             break;
         
         }
         //SetConsoleTextAttribute(hConsoleHandle, i32LogColorText);
        // std::cout << std::format(" {}::({}:{}:{}) ", typeCurrent, Time.x, Time.y, Time.z) << " [PahomEngine] " << text << std::endl;
-        console.pout(std::format(" {}::({}:{}:{}) [PahomEngine] {}\n ", typeCurrent, Time.x, Time.y, Time.z, text),colorTexti32,colorBacki32,false,false);
+        if(bColoredConsole)
+        {
+            console.pout(std::format(" {}::({}:{}:{}) [PahomEngine] {}\n ", typeCurrent, Time.x, Time.y, Time.z, text), colorTexti32, colorBacki32, false, false);
+        }
+        else {
+            SetConsoleTextAttribute(hConsoleHandle, i32LogColorText);
+            std::cout << std::format(" {}::({}:{}:{}) ", typeCurrent, Time.x, Time.y, Time.z) << " [PahomEngine] " << text << std::endl;
+        }
        // SetConsoleTextAttribute(hConsoleHandle, 15);
     }
     else {
@@ -2426,10 +2663,20 @@ void PahomEngineStruct::logo() {
         "  \\/_____/   \\/_/ \\/_/   \\/_____/   \\/_/   \\/_/ \\/_/   \\/_____/ \n"
         "                                                                \n";
     SetConsoleOutputCP(CP_UTF8);
-    for (int64_t c = 0; c < PAHOM_ENGINE.size(); c++) {
-        console.pout(std::format("{}", PAHOM_ENGINE[c]), console.randColor(), ColorV3(19, 19, 22), true, false);
+    if(bColoredConsole)
+    {
+        for (int64_t c = 0; c < PAHOM_ENGINE.size(); c++) {
+            console.pout(std::format("{}", PAHOM_ENGINE[c]), console.randColor(), ColorV3(19, 19, 22), true, false);
+        }
+        console.TestColors({ 12,12 });
     }
-    console.TestColors({12,12});
+    else {
+        for (int64_t c = 0; c < PAHOM_ENGINE.size(); c++) {
+            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), rand() % 15);
+            std::cout << (std::format("{}", PAHOM_ENGINE[c]));
+        }
+       // console.TestColors({ 12,12 });
+    }
 }
 void PahomEngineStruct::stdoutColored(std::string out,int16_t i16colorText) {
     HANDLE hc = GetStdHandle(STD_OUTPUT_HANDLE);

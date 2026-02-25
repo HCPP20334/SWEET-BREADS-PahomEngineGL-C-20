@@ -48,7 +48,7 @@ HGLRC CreateGL(HDC hDC, int major, int minor)
     HGLRC hRC_final = wglCreateContextAttribsARB(hDC, 0, attribs);
     wglMakeCurrent(NULL, NULL);
     wglDeleteContext(hRC_temp);
-
+    std::cout << "(ogl) loaded" << major << "." << minor << "\n";
     return hRC_final;
 }
 #include <vector>
@@ -58,6 +58,24 @@ HGLRC CreateGL(HDC hDC, int major, int minor)
 #include <atomic>
 #include <fstream>
 #include <mutex>
+struct random {
+    std::random_device rd;
+    std::mt19937_64 rdmt;
+    template <typename T>
+    T generate(T value_max , T value_min = 0)
+    {
+        rdmt.seed(rd());
+        if constexpr (std::is_floating_point_v<T>) {
+            std::uniform_real_distribution<T> dist(0, value_max);
+            return dist(rdmt);
+        }
+        else {
+            std::uniform_int_distribution<T> dist(0, value_max);
+            return dist(rdmt);
+        }
+    }
+};
+auto rnd = std::make_unique<random>();
 struct colorU32 {
     uint32_t r, g, b, a;
     colorU32() : r(0), g(0), b(0), a(0) {}
@@ -83,6 +101,7 @@ struct colorU32 {
     std::string toStringView() const {
         return std::format("U32RGBA({},{},{},{})->0x{}", this->r, this->g, this->b, this->a, colorU32(this->r, this->g, this->b, this->a).get());
     }
+    
    
 };
 // convert to ImVec4 color to ColorU32 | Work Correctly
@@ -92,6 +111,7 @@ uint32_t ToU32(ImVec4 color) {
 }
 
 struct GLM {
+    int iVtxOffset = 64000;
     void Pen(int draw_x, int draw_y, colorU32 u32Color);
     void toU32Buffer(uint8_t* buffer_std);
     std::vector<uint32_t>pixel_buffer;
@@ -135,7 +155,7 @@ struct GLM {
         }
         coordImage.close();
     }
-    void blurGausse(uint32_t x, uint32_t y) {
+    void noise(uint32_t x, uint32_t y) {
         const uint32_t num_threads = std::jthread::hardware_concurrency();
         std::vector<std::jthread> threads;
         uint32_t stripe_height = y / num_threads;
@@ -149,7 +169,7 @@ struct GLM {
 
                 for (uint32_t fill_y = startY; fill_y < endY; fill_y++) {
                     for (uint32_t fill_x = 0; fill_x < x; fill_x++) {
-                        uint32_t random_alpha = rand() % 155-100;
+                        uint32_t random_alpha = rnd->generate<uint32_t>(155,100);
                         uint32_t color_rand[] = {
                             10,15,
                             13,18,
@@ -170,17 +190,10 @@ struct GLM {
     bool init = false;
     void Overlay(int x ,int y) {
       
-        if(!init)
-        {
-            SetSize(x, y);
-            InitTexture();
-            blurGausse(x, y);
-            init = true;
-        }
-        
+       
         ImGui::SetCursorPos({ 0,0 });
         ImGui::Image(int64_t((void*)textureID), ImVec2(x, y));
-        UpdateTexture();
+        
  
     }
     void SetRawPixelDataToFile(const std::string& filename) {
