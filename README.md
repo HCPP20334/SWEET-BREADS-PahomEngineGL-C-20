@@ -1,7 +1,7 @@
 
 Russian
 
-SWEET BREADS 0.9.00
+SWEET BREADS 0.9.52
 =========================================
  СИСТЕМНЫЕ ТРЕБОВАНИЯ
 - Процессор         : любой с поддержкой SSE4.1 и x64
@@ -19,7 +19,7 @@ SWEET BREADS 0.9.00
 
 English
 
-SWEET BREADS 0.9.00
+SWEET BREADS 0.9.52
 ==============================================
 SYSTEM REQUIREMENTS
 - Processor: Any with SSE4.1 and x64 support
