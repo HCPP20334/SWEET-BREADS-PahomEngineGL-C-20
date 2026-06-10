@@ -5,7 +5,14 @@
 #define CRT_NO_WARNINGS 1
 struct test {
     int a = 0;
+   
 };
+
+bool key(int a) {
+    int b = 1;
+    auto *p = PahomEngine;
+    return p->getPressedKey(a, b);
+}
 auto a = PahomEngine->cio->alloc_ptr<test>();
 
 
@@ -28,6 +35,101 @@ struct GameFrames {
             Shell_NotifyIcon(NIM_DELETE, &nid);
             i32Timer = 0;
         }
+    }
+    bool bExitWindowClosed = false;
+    void ExitWindow() {
+        // settings
+        static float fAlpha = 0;
+        static bool bClose = false;
+        static bool bEngineStopFlag = false;
+        float fSpeed = 500;
+        //
+        std::string text = "Вы хотите выйти ?\n";
+        ImVec2 size = {
+            PahomEngine->cast->unicast<int64_t,float>(PahomEngine->i64WindowSize[0]),
+            PahomEngine->cast->unicast<int64_t,float>(PahomEngine->i64WindowSize[1])
+        };
+        //
+        float fTextPosX = ImGui::CalcTextSize(text.c_str()).x;
+        float fTextPosY = ImGui::CalcTextSize(text.c_str()).y;
+        //
+        ImVec2 text_center = {
+            (size.x - fTextPosX) / 2.0f,
+            (size.y - fTextPosY) / 2.0f
+        };
+        
+        ImGui::SetCursorPos({ 0,0 });
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, PahomEngine->RGBA(7, 7, 7, fAlpha));
+        if (ImGui::BeginChild("#exit", { size.x,size.y }, ImGuiChildFlags_FrameStyle, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove)) {
+            if (!bClose) {
+                fAlpha += fSpeed * ImGui::GetIO().DeltaTime;
+                if (fAlpha >= 255) {
+                    PahomEngine->bRenderPaused = true;
+                    fAlpha = 255;
+                }
+            }
+            else {
+                fAlpha -= fSpeed * ImGui::GetIO().DeltaTime;
+                if (fAlpha < 0) {
+                    bExitWindowClosed = true;
+                    fAlpha = 0;
+                    PahomEngine->bRenderPaused = false;
+                    if (bEngineStopFlag) {
+                        
+                            PahomEngine->ShutdownEngine();
+                            delete PahomEngine;
+                            exit(0);
+                        
+                    }
+                    bClose = false;
+                }
+            }
+            static float scale_step = 0.4;
+            static float size_bread_x = 128;
+            static float size_bread_y = 128;
+            static bool  reversed = false;
+            if (reversed) {
+                size_bread_x += (128 * scale_step) * ImGui::GetIO().DeltaTime;
+            }
+            else {
+                size_bread_x -= (128 * scale_step) * ImGui::GetIO().DeltaTime;
+            }
+            if (size_bread_x <= 100) {
+                reversed = true;
+            }
+            if (size_bread_x >= 128) {
+                reversed = false;
+            }
+            size_bread_y = size_bread_x;
+            //PahomEngine->Text("size_bread_x:{}\nsize_bread_y:{}", size_bread_x, size_bread_y);
+            ImGui::SetCursorPos({
+                (size.x - size_bread_x) / 2.0f,
+                128
+                });
+            ImGui::Image(PahomEngine->ImageData.GetImTexture(2), { size_bread_x,size_bread_y },{0,0},{1,1},PahomEngine->RGBA({255,255,255,fAlpha}));
+            ImVec4 color_button = ImGui::GetStyleColorVec4(ImGuiCol_Button);
+            //std::cout << fAlpha << "\n";
+            ImGui::SetCursorPos(text_center);
+            PahomEngine->TextColored(PahomEngine->RGBA(255, 255, 255, fAlpha), "{}", text);
+            ImGui::SetCursorPosX((size.x - 128) / 2.0f);
+            ImGui::PushStyleColor(ImGuiCol_Border, PahomEngine->RGBA(73, 73, 83, fAlpha));
+            ImGui::PushStyleColor(ImGuiCol_Text, PahomEngine->RGBA(255, 255, 255, fAlpha));
+            ImGui::PushStyleColor(ImGuiCol_Button, PahomEngine->RGBA(73, 73, 83, fAlpha));
+            if (ImGui::Button("Да", { 64,32 })) {
+                bClose = true;
+                bEngineStopFlag = true;
+            }
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Border, PahomEngine->RGBA(73, 73, 83, fAlpha));
+            ImGui::PushStyleColor(ImGuiCol_Text, PahomEngine->RGBA(255, 255, 255, fAlpha));
+            ImGui::PushStyleColor(ImGuiCol_Button, PahomEngine->RGBA(73,73,83,fAlpha));
+            if (ImGui::Button("Нет", { 64,32 }) || GetKeyState(VK_F2) & 0x8000) {
+                bClose = true;
+            }
+            ImGui::PopStyleColor(6);
+            ImGui::EndChild();
+        }
+        ImGui::PopStyleColor();
     }
     void DrawParticles(
         const ImVec2& emitterPos,      // откуда летят
@@ -172,6 +274,7 @@ struct GameFrames {
             ImGui::EndPopup();
         }
     }
+    
     void logo() {
         static float imageSizeX = 0;
         static float imageSizeY = 0, fa_text = 100;
@@ -182,7 +285,7 @@ struct GameFrames {
                 fAlphaChannelLogo += 100 * ImGui::GetIO().DeltaTime;
                 ImVec4 ColorImage = PahomEngine->RGBA(255,255,255,fAlphaChannelLogo);
                 ImVec2 PosImage = (ImGui::GetWindowSize() - ImVec2(128, 128)) / ImVec2(2, 2);
-                PahomEngine->Text("alpha_channel :{}\nframe_rate: {}\ndelta_time: {}", fAlphaChannelLogo, ImGui::GetIO().Framerate, ImGui::GetIO().DeltaTime);
+               // PahomEngine->Text("alpha_channel :{}\nframe_rate: {}\ndelta_time: {}", fAlphaChannelLogo, ImGui::GetIO().Framerate, ImGui::GetIO().DeltaTime);
                 ImGui::SetCursorPos(PosImage);
                 ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[11]), { 128,128 }, { 0,0 }, { 1,1 }, ColorImage);
                 if (fAlphaChannelLogo >= 150 && fAlphaChannelLogo < 255) {
@@ -224,7 +327,7 @@ struct GameFrames {
                 revesed = true;
                 bLogoEngineShow = true;
             }
-            PahomEngine->Text("alpha_offset: {}\nimage_size (X: {},Y: {})\nframe_rate: {}\ndelta_time: {}\nfa_text:{}", fImageLogoAlpha, imageSizeX, imageSizeY, ImGui::GetIO().Framerate, ImGui::GetIO().DeltaTime, fa_text);
+           // PahomEngine->Text("alpha_offset: {}\nimage_size (X: {},Y: {})\nframe_rate: {}\ndelta_time: {}\nfa_text:{}", fImageLogoAlpha, imageSizeX, imageSizeY, ImGui::GetIO().Framerate, ImGui::GetIO().DeltaTime, fa_text);
             PahomEngine->setItemCenter(ImVec2(imageSizeX, imageSizeY));
             ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ImageData.TextureArray[0]), ImVec2(imageSizeX, imageSizeY),{0,0},{1,1},{1,1,1,fImageLogoAlpha});
             if (imageSizeX >= 64 && imageSizeY >= 64) {
@@ -253,12 +356,7 @@ struct GameFrames {
                 }
             }
         }
-        ///
-        PahomEngine->pDiff->i64id = 1;
-        PahomEngine->pDiff->setDiff(1);
-        PahomEngine->fStepMove = PahomEngine->pDiff->diffArray[PahomEngine->pDiff->i64id].i64buffer;
-        PahomEngine->fStep = PahomEngine->pDiff->diffArray[PahomEngine->pDiff->i64id].i64buffer1;
-        //
+       
     }
     float fMinPosBread = (PahomEngine->i64BreadSize[1]);
     void randomEvents() {
@@ -330,6 +428,7 @@ struct GameFrames {
 
             // check coliision
             if (PahomEngine->CheckColiision()) {
+                PahomEngine->bIsCollisionOK = true;
                 //waveOutSetVolume(NULL, (10 / 0xFFFF));
                 PahomEngine->ptrGamepad1->Vibrate(10000, 10000);
                 
@@ -376,6 +475,9 @@ struct GameFrames {
                 if (PahomEngine->i64RandBoost < 25 && PahomEngine->fScoreCount > PahomEngine->math->random<int64_t>(100, false)) {
                     PahomEngine->Event.bScreamEvent = true;
                 }
+            }
+            else {
+                PahomEngine->bIsCollisionOK = false;
             }
         }
     }
@@ -891,7 +993,8 @@ void GameFrames::genParticles() {
 bool bFillingTestOpenGL = false;
 bool bPahomEngineAudioEditor = false;
 bool bPahomEngineTextureEditor = false;
-void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
+
+void PahomEngineEditor(ImVec2 sizeMax, ImFont* fontSmall = nullptr) {
     static int64_t i64CurrentIndexAudio = 0, i64CurrentIndexAudioUser = 0;
     static float fPlayerUserSoundVolumeOffset = 0.02f;
     static std::string sOpenFile;
@@ -902,7 +1005,7 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
         if (ImGui::BeginPopup("MusicsScan", ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize)) {
             static std::string sScanToPath = "musics";
             ImGui::InputText("Путь:", &sScanToPath); ImGui::SameLine(); if (ImGui::Button("Сканировать")) { PahomEngine->audio.ScanFiles(sScanToPath, ".wav"); }
-            PahomEngine->Text("Заменить: {} на {} id:{}", PahomEngine->audio.audiolist[i64CurrentIndexAudio],PahomEngine->audio.musicFiles.size() > 0 ? PahomEngine->audio.musicFiles[i64CurrentIndexAudioUser] : "Пусто", i64CurrentIndexAudioUser);
+            PahomEngine->Text("Заменить: {} на {} id:{}", PahomEngine->audio.audiolist[i64CurrentIndexAudio], PahomEngine->audio.musicFiles.size() > 0 ? PahomEngine->audio.musicFiles[i64CurrentIndexAudioUser] : "Пусто", i64CurrentIndexAudioUser);
             if (ImGui::BeginChild("audioCurrent", { 300,400 }, ImGuiChildFlags_FrameStyle, ImGuiWindowFlags_NoTitleBar)) {
                 if (PahomEngine->audio.musicFiles.size() > 0) {
                     for (int index = 0; index < PahomEngine->audio.musicFiles.size(); index++) {
@@ -912,34 +1015,42 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
                             i64CurrentIndexAudioUser = index;
                             PahomEngine->audio.audioDevice2.loadSound(PahomEngine->audio.musicFiles[i64CurrentIndexAudioUser]);
                         }
-                        
+
                         ImGui::ImLine(300, 1, PahomEngine->RGBA(12, 12, 19, 255));
                     }
                     ImGui::PopStyleColor(PahomEngine->audio.musicFiles.size() * 2);
                 }
                 ImGui::EndChild();
-               
+
             }
             ImGui::SameLine();
             if (ImGui::Button("Заменить файлы")) {
                 PahomEngine->audio.audiolist[i64CurrentIndexAudio] = PahomEngine->audio.musicFiles[i64CurrentIndexAudioUser];
             }
-           
+
             if (ImGui::Button("Открыть файл")) {
                 PahomEngine->audio.openFileDialog(sOpenFile);
                 bFileOpened = !bFileOpened;
             }
             ImGui::SameLine();
             if (bFileOpened) {
+                //if (ImGui::BeginChild("#player", { 200,100 })) {
+                //    ImGui::SetCursorPos({ 200 - ImGui::CalcTextSize(std::format("{}",PahomEngine->audio.musicFiles[i64CurrentIndexAudioUser]).c_str()).x,30 });
+                //    PahomEngine->Text("{}", PahomEngine->audio.musicFiles[i64CurrentIndexAudioUser]);
+                //    PahomEngine->Text("{}", PahomEngine->audio.audioTime->formatTime(PahomEngine->audio.audioTime->current));
+                //    PahomEngine->Text("{}", PahomEngine->audio.audioTime->formatTime(PahomEngine->audio.audioTime->getDuration(PahomEngine->audio.audioDevice2)));
+                //    ImGui::EndChild();
+                //}
                 if (ImGui::Button("Заменить")) {
-                   
+
                     PahomEngine->audio.audiolist[i64CurrentIndexAudio] = sOpenFile;
                     bFileOpened = false;
                 }
                 PahomEngine->Text("Заменить: {}\nна загруженный файл: {}", PahomEngine->audio.audiolist[i64CurrentIndexAudio], sOpenFile);
             }
-           
+
             if (ImGui::Button("Прослушать")) {
+
                 bPlayerUserSound = !bPlayerUserSound;
                 if (PahomEngine->audio.audioDevice2) {
                     if (PahomEngine->audio.musicFiles.size() > 0) {
@@ -949,7 +1060,7 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
                             PahomEngine->audio.audioDevice2.pause();
                     }
 
-                }       
+                }
             }
             if (fontSmall) {
                 ImGui::PushFont(fontSmall);
@@ -971,13 +1082,13 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
                     }
                 }
             }
-            
+
             ImGui::EndPopup();
         }
         static float fLineMinPosX = 0;
         ImGui::SetWindowPos({ 0,0 });
         ImGui::SetWindowSize(sizeMax);
-      
+
         if (ImGui::Button("Сканировать")) {
             ImGui::OpenPopup("MusicsScan");
         }
@@ -990,12 +1101,12 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
         PahomEngine->Text("Выбран: {} id:{}", PahomEngine->audio.audiolist[i64CurrentIndexAudio], i64CurrentIndexAudio);
         if (ImGui::BeginChild("audioCurrent", { 300,sizeMax.y - 100 }, ImGuiChildFlags_FrameStyle, ImGuiWindowFlags_NoTitleBar)) {
             for (int index = 0; index < PE_ARRAYSIZE(PahomEngine->audio.audiolist); index++) {
-                ImGui::PushStyleColor(ImGuiCol_Button, (i64CurrentIndexAudio == index ? PahomEngine->RGBA(100, 110, 246,255) : PahomEngine->RGBA(0, 0, 0, 0)));
+                ImGui::PushStyleColor(ImGuiCol_Button, (i64CurrentIndexAudio == index ? PahomEngine->RGBA(100, 110, 246, 255) : PahomEngine->RGBA(0, 0, 0, 0)));
                 ImGui::PushStyleColor(ImGuiCol_Border, PahomEngine->RGBA(0, 0, 0, 0));
                 if (ImGui::Button(PahomEngine->audio.audiolist[index].c_str(), { 300,30 })) {
                     i64CurrentIndexAudio = index;
                 }
-                
+
                 ImGui::ImLine(300, 1, PahomEngine->RGBA(12, 12, 19, 255));
             }
             ImGui::PopStyleColor(PE_ARRAYSIZE(PahomEngine->audio.audiolist) * 2);
@@ -1003,189 +1114,189 @@ void PahomEngineEditor(ImVec2 sizeMax,ImFont* fontSmall = nullptr) {
         }
         ImGui::End();
     }
-        static  colorU32 colors;
-        static uint32_t currentColorU32;
-        int32_t i32SameLineCount = 0;
-        static int32_t i32SelectedTexture = 0;
-        static uint32_t u32data = 0, tmax = 1;
-        static int64_t idx_image = 0;
-        static bool bBenchCPU = false, bSelectorTextures = false, bEraseColors = false;
-        static GLuint SelectedTexture;
-        static double dScoreTimeToFill = 0;
-        if (bPahomEngineTextureEditor && !bPahomEngineAudioEditor) {
-            ImGui::Begin("OGL Draw", &bPahomEngineTextureEditor, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
-            PahomEngine->ogl->SelectTextureToSwapUI(PahomEngine->ImageData.TextureArray, 11, PahomEngine->ImageData.TextureBufferArray);
-            ImGui::SetWindowPos({ 0,0 });
-            ImGui::SetWindowSize(sizeMax);
-            
-            static std::string sImageSaveFile = "image.png";
-            if (ImGui::BeginPopup("#save_image", ImGuiWindowFlags_NoTitleBar)) {
-                ImGui::Text("Сохранение файла");
-                ImGui::Separator();
-                ImGui::InputText("Путь", &sImageSaveFile);
-                ImGui::Text("Размер: %d x %d", PahomEngine->ogl->width_texture, PahomEngine->ogl->height_texture);
-                if (ImGui::Button("Сохранить", { 150, 30 })) {
-                    PahomEngine->ogl->savePng(sImageSaveFile);
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Отмена", { 150, 30 })) {
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Raw copy")) {
-                    PahomEngine->ogl->SetRawPixelDataToFile(sImageSaveFile);
-                }
-                ImGui::EndPopup();
-            }
-            if (ImGui::BeginPopup("set_cpu_test", ImGuiWindowFlags_NoTitleBar)) {
-                bFillingTestOpenGL = true;
-                static int x = 320, y = 240;
-                static uint32_t i32MaxThreads = std::jthread::hardware_concurrency();
-                ImGui::SetCursorPosX(30); PahomEngine->Text("max_thread: {}", i32MaxThreads);
-                ImGui::SetCursorPosX(30); PahomEngine->Text("size_x: {}", x);
-                ImGui::SetCursorPosX(30); PahomEngine->Text("size_y: {}", y);
-                ImGui::SetCursorPosX(30); PahomEngine->TextColored(PahomEngine->RGBA({ 255,200,0,255 }), "Score: {:.1f} ms", dScoreTimeToFill);
-                ImGui::SetCursorPosX(30); ImGui::SetNextItemWidth(150); ImGui::InputInt("x_size:", &x, 1, 100); ImGui::SameLine(); ImGui::SetNextItemWidth(150); ImGui::InputInt("y_size:", &y, 1, 100);
-                ImGui::SetCursorPosX(30); ImGui::SetNextItemWidth(150); if (ImGui::SliderU32("MaxThreads:", &tmax, 1, i32MaxThreads)) {
-                    glpx.SetSize(x, y);
-                    glpx.InitTexture();
-                }
-                ImGui::SetCursorPosX(7);
-                if (ImGui::Button("Start Bench", { 300,40 })) {
-                    bBenchCPU = true;
-                    bStopBench = false;
-                    auto in_fill_time = std::chrono::high_resolution_clock::now();
-                    glpx.fillSqware(x, y, true, (tmax < 1 ? std::jthread::hardware_concurrency() : tmax));
-                    auto out_fill_time = std::chrono::high_resolution_clock::now();
-                    dScoreTimeToFill = std::chrono::duration_cast<std::chrono::milliseconds>(out_fill_time - in_fill_time).count();
-                    bFillingTestOpenGL = false;
-                }
-                if (bBenchCPU) {
+    static  colorU32 colors;
+    static uint32_t currentColorU32;
+    int32_t i32SameLineCount = 0;
+    static int32_t i32SelectedTexture = 0;
+    static uint32_t u32data = 0, tmax = 1;
+    static int64_t idx_image = 0;
+    static bool bBenchCPU = false, bSelectorTextures = false, bEraseColors = false;
+    static GLuint SelectedTexture;
+    static double dScoreTimeToFill = 0;
+    if (bPahomEngineTextureEditor && !bPahomEngineAudioEditor) {
+        ImGui::Begin("OGL Draw", &bPahomEngineTextureEditor, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
+        PahomEngine->ogl->SelectTextureToSwapUI(PahomEngine->ImageData.TextureArray, 11, PahomEngine->ImageData.TextureBufferArray);
+        ImGui::SetWindowPos({ 0,0 });
+        ImGui::SetWindowSize(sizeMax);
 
-                    FillBenchCPU(0, 0, tmax);
-
-                }
-                ImGui::EndPopup();
-            }
-            if (fontSmall)
-            {
-                ImGui::PushFont(fontSmall);
-            }
-            else {
-                static bool isFontNullptr = true;
-                if (isFontNullptr) {
-                    PahomEngine->log("(DRAW Textures Frame) Set Font it's nullptr!!", 2);
-                    PahomEngine->log(std::format("Test Cast uint64_t to uint8_t console.setVal<uint64_t>(30, 30, 30).getHex()={}", console.setVal<uint64_t>(30, 30, 30).getHex()), 3);
-                    isFontNullptr = false;
-                }
-            }
-            PahomEngine->Text("alloc_texture_size:{} | x:{} y:{} color:{}", PahomEngine->ogl->pixel_buffer.size(), PahomEngine->ogl->width_texture, PahomEngine->ogl->height_texture, colors.toStringView());
-
-            if (ImGui::Button("gen noise", { 150,50 })) {
-                PahomEngine->ogl->noise(PahomEngine->cast->unicast<int64_t,uint32_t>(PahomEngine->i64WindowSize[0]), PahomEngine->cast->unicast<int64_t, uint32_t>(PahomEngine->i64WindowSize[1]));
-            }
-            
-            ImGui::SameLine();
-            if (ImGui::Button("Создать\nИзображение", { 100,50 })) {
-                PahomEngine->ogl->SetSize(512, 512);
-                PahomEngine->ogl->InitTexture();
+        static std::string sImageSaveFile = "image.png";
+        if (ImGui::BeginPopup("#save_image", ImGuiWindowFlags_NoTitleBar)) {
+            ImGui::Text("Сохранение файла");
+            ImGui::Separator();
+            ImGui::InputText("Путь", &sImageSaveFile);
+            ImGui::Text("Размер: %d x %d", PahomEngine->ogl->width_texture, PahomEngine->ogl->height_texture);
+            if (ImGui::Button("Сохранить", { 150, 30 })) {
+                PahomEngine->ogl->savePng(sImageSaveFile);
+                ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Выбрать\nтекстуру", { 100,50 })) {
-                bSelectorTextures = !bSelectorTextures;
-                ImGui::OpenPopup("SelectToTexture");
-
+            if (ImGui::Button("Отмена", { 150, 30 })) {
+                ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Тест Заполнения\n(Заливка OpenGL)", { 150,50 })) {
-                ImGui::OpenPopup("set_cpu_test");
+            if (ImGui::Button("Raw copy")) {
+                PahomEngine->ogl->SetRawPixelDataToFile(sImageSaveFile);
             }
-            ImGui::SameLine();
-            static ImVec4 colorIv4 = {};
-            // color editor
-            ImGui::ColorEdit3("Цвет Кисти", reinterpret_cast<float*>(&colorIv4), ImGuiColorEditFlags_NoInputs);
-            colors = colorU32(static_cast<uint32_t>(colorIv4.x * 255), static_cast<uint32_t>(colorIv4.y * 255), static_cast<uint32_t>(colorIv4.z * 255), 255);
-            currentColorU32 = colors.get();
-            //
-           
-            ImGui::SameLine();
-            if (ImGui::Button("Ластик", { 100,40 })) {
-                bEraseColors = !bEraseColors;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Вставить", { 100,40 })) {
-                PahomEngine->ogl->printImage();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("X", { 40,40 })) {
-                
-                bPahomEngineTextureEditor= false;
-                PahomEngine->Event.bTextureEditor = false;
-            }
-            PahomEngine->setItemCenterX(150, ImGui::GetWindowSize().x);
-            if (ImGui::Button("Сохранить в (*.png)", { 150,30 })) {
-                ImGui::OpenPopup("#save_image");
-            }
-            ImGui::SliderInt64("Толщина", &PahomEngine->ogl->i64BrushSize, 1, 100, "%lld", 0);
-            ImGui::SetCursorPos({
-                (ImGui::GetWindowSize().x - 512) / 2,
-                 (ImGui::GetWindowSize().y - 512) / 2
-                });
-            if (fontSmall)
-            {
-                ImGui::PopFont();
-            }
-            ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ogl->textureID), { 512,512 }, { 0,0 }, { 1,1 }, { 1,1,1,1 }, { 1,1,1,1 });
-            /* PahomEngine->setItemCenterX(ImGui::CalcTextSize(std::format("colorHEX: {}", colors.HEX()).c_str()).x,ImGui::GetWindowSize().x);
-             PahomEngine->Text("colorHEX: {}", colors.HEX());*/
-            
-            ImVec2 rectTex = ImGui::GetItemRectMin();
-            ImVec2 rectMax = ImGui::GetItemRectMax();
-            if (ImGui::IsItemHovered()) // Проверяем, наведен ли курсор на текстуру
-            {
-                ImVec2 canvas_pos = rectTex; // Позиция текстуры на экране
-                ImVec2 mouse_pos = ImGui::GetIO().MousePos;// Абсолютная позиция мыши
-
-               int draw_x = static_cast<int>(mouse_pos.x - canvas_pos.x);
-               int draw_y = static_cast<int>(mouse_pos.y - canvas_pos.y);
-                if (draw_x >= 0 && draw_x < rectMax.x && draw_y >= 0 && draw_y < rectMax.y) {
-                    int brush_size = PahomEngine->ogl->i64BrushSize;
-                    int half_brush = brush_size / 2;
-                    if (ImGui::IsKeyPressed(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_MouseRight) || bEraseColors) {
-                        currentColorU32 = 0;
-                        for (int x = draw_x - half_brush; x < draw_x + half_brush; x++) {
-                            for (int y = draw_y - half_brush; y < draw_y + half_brush; y++) {
-                                if (x >= 0 && x < PahomEngine->ogl->width_texture &&
-                                    y >= 0 && y < PahomEngine->ogl->height_texture)
-                                {
-                                   // PahomEngine->ogl->getCoordPixel(x, y);
-                                    PahomEngine->ogl->SetPixel(x, y, currentColorU32);
-                                }
-                            }
-                        }
-                    }
-                    if (ImGui::IsKeyPressed(ImGuiKey_MouseLeft) && !bSelectorTextures || ImGui::IsMouseDown(ImGuiMouseButton_Left) && !bSelectorTextures) {
-                        for (int x = draw_x - half_brush; x < draw_x + half_brush; x++) {
-                            for (int y = draw_y - half_brush; y < draw_y + half_brush; y++) {
-                                if (x >= 0 && x < PahomEngine->ogl->width_texture &&
-                                    y >= 0 && y < PahomEngine->ogl->height_texture)
-                                {
-                                    PahomEngine->ogl->SetPixel(x, y, currentColorU32);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-
-            PahomEngine->ogl->UpdateTexture();
-
-
-            ImGui::End();
+            ImGui::EndPopup();
         }
+        if (ImGui::BeginPopup("set_cpu_test", ImGuiWindowFlags_NoTitleBar)) {
+            bFillingTestOpenGL = true;
+            static int x = 320, y = 240;
+            static uint32_t i32MaxThreads = std::jthread::hardware_concurrency();
+            ImGui::SetCursorPosX(30); PahomEngine->Text("max_thread: {}", i32MaxThreads);
+            ImGui::SetCursorPosX(30); PahomEngine->Text("size_x: {}", x);
+            ImGui::SetCursorPosX(30); PahomEngine->Text("size_y: {}", y);
+            ImGui::SetCursorPosX(30); PahomEngine->TextColored(PahomEngine->RGBA({ 255,200,0,255 }), "Score: {:.4f} ms", dScoreTimeToFill);
+            ImGui::SetCursorPosX(30); ImGui::SetNextItemWidth(150); ImGui::InputInt("x_size:", &x, 1, 100); ImGui::SameLine(); ImGui::SetNextItemWidth(150); ImGui::InputInt("y_size:", &y, 1, 100);
+            ImGui::SetCursorPosX(30); ImGui::SetNextItemWidth(150); if (ImGui::SliderU32("MaxThreads:", &tmax, 1, i32MaxThreads)) {
+                glpx.SetSize(x, y);
+                glpx.InitTexture();
+            }
+            ImGui::SetCursorPosX(7);
+            if (ImGui::Button("Start Bench", { 300,40 })) {
+                bBenchCPU = true;
+                bStopBench = false;
+                //auto in_fill_time = std::chrono::high_resolution_clock::now();
+                glpx.fillSqware(x, y, true, (tmax < 1 ? std::jthread::hardware_concurrency() : tmax));
+                // auto out_fill_time = std::chrono::high_resolution_clock::now();
+                dScoreTimeToFill = glpx.g_dElapsed.load();
+                bFillingTestOpenGL = false;
+                glpx.savePng("noise_rgb.png");
+
+            }
+            if (bBenchCPU) {
+
+                FillBenchCPU(0, 0, tmax);
+
+            }
+            ImGui::EndPopup();
+        }
+        if (fontSmall)
+        {
+            ImGui::PushFont(fontSmall);
+        }
+        else {
+            static bool isFontNullptr = true;
+            if (isFontNullptr) {
+                PahomEngine->log("(DRAW Textures Frame) Set Font it's nullptr!!", 2);
+                PahomEngine->log(std::format("Test Cast uint64_t to uint8_t console.setVal<uint64_t>(30, 30, 30).getHex()={}", console.setVal<uint64_t>(30, 30, 30).getHex()), 3);
+                isFontNullptr = false;
+            }
+        }
+        PahomEngine->Text("alloc_texture_size:{} | x:{} y:{} color:{}", PahomEngine->ogl->pixel_buffer.size(), PahomEngine->ogl->width_texture, PahomEngine->ogl->height_texture, colors.toStringView());
+
+        if (ImGui::Button("gen noise", { 150,50 })) {
+            PahomEngine->ogl->noise(PahomEngine->cast->unicast<int64_t, uint32_t>(PahomEngine->i64WindowSize[0]), PahomEngine->cast->unicast<int64_t, uint32_t>(PahomEngine->i64WindowSize[1]));
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Создать\nИзображение", { 100,50 })) {
+            PahomEngine->ogl->SetSize(512, 512);
+            PahomEngine->ogl->InitTexture();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Выбрать\nтекстуру", { 100,50 })) {
+            bSelectorTextures = !bSelectorTextures;
+            ImGui::OpenPopup("SelectToTexture");
+
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Тест Заполнения\n(Заливка OpenGL)", { 150,50 })) {
+            ImGui::OpenPopup("set_cpu_test");
+        }
+        ImGui::SameLine();
+        static ImVec4 colorIv4 = {};
+        // color editor
+        ImGui::ColorEdit3("Цвет Кисти", reinterpret_cast<float*>(&colorIv4), ImGuiColorEditFlags_NoInputs);
+        colors = colorU32(static_cast<uint32_t>(colorIv4.x * 255), static_cast<uint32_t>(colorIv4.y * 255), static_cast<uint32_t>(colorIv4.z * 255), 255);
+        currentColorU32 = colors.get();
+        //
+
+        ImGui::SameLine();
+        if (ImGui::Button("Ластик", { 100,40 })) {
+            bEraseColors = !bEraseColors;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Вставить", { 100,40 })) {
+            PahomEngine->ogl->printImage();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("X", { 40,40 })) {
+
+            bPahomEngineTextureEditor = false;
+            PahomEngine->Event.bTextureEditor = false;
+        }
+        PahomEngine->setItemCenterX(150, ImGui::GetWindowSize().x);
+        if (ImGui::Button("Сохранить в (*.png)", { 150,30 })) {
+            ImGui::OpenPopup("#save_image");
+        }
+        ImGui::SliderInt64("Толщина", &PahomEngine->ogl->i64BrushSize, 1, 100, "%lld", 0);
+        ImGui::SetCursorPos({
+            (ImGui::GetWindowSize().x - 512) / 2,
+             (ImGui::GetWindowSize().y - 512) / 2
+            });
+        if (fontSmall)
+        {
+            ImGui::PopFont();
+        }
+        ImGui::Image(PahomEngine->ptrint64_t(PahomEngine->ogl->textureID), { 512,512 }, { 0,0 }, { 1,1 }, { 1,1,1,1 }, { 1,1,1,1 });
+        /* PahomEngine->setItemCenterX(ImGui::CalcTextSize(std::format("colorHEX: {}", colors.HEX()).c_str()).x,ImGui::GetWindowSize().x);
+         PahomEngine->Text("colorHEX: {}", colors.HEX());*/
+
+        ImVec2 rectTex = ImGui::GetItemRectMin();
+        ImVec2 rectMax = ImGui::GetItemRectMax();
+        if (ImGui::IsItemHovered()) // Проверяем, наведен ли курсор на текстуру
+        {
+            ImVec2 canvas_pos = rectTex; // Позиция текстуры на экране
+            ImVec2 mouse_pos = ImGui::GetIO().MousePos;// Абсолютная позиция мыши
+
+            int draw_x = static_cast<int>(mouse_pos.x - canvas_pos.x);
+            int draw_y = static_cast<int>(mouse_pos.y - canvas_pos.y);
+            if (draw_x >= 0 && draw_x < rectMax.x && draw_y >= 0 && draw_y < rectMax.y) {
+                int brush_size = PahomEngine->ogl->i64BrushSize;
+                int half_brush = brush_size / 2;
+                if (ImGui::IsKeyPressed(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_MouseRight) || bEraseColors) {
+                    currentColorU32 = 0;
+                    for (int x = draw_x - half_brush; x < draw_x + half_brush; x++) {
+                        for (int y = draw_y - half_brush; y < draw_y + half_brush; y++) {
+                            if (x >= 0 && x < PahomEngine->ogl->width_texture &&
+                                y >= 0 && y < PahomEngine->ogl->height_texture)
+                            {
+                                // PahomEngine->ogl->getCoordPixel(x, y);
+                                PahomEngine->ogl->SetPixel(x, y, currentColorU32);
+                            }
+                        }
+                    }
+                }
+                if (ImGui::IsKeyPressed(ImGuiKey_MouseLeft) && !bSelectorTextures || ImGui::IsMouseDown(ImGuiMouseButton_Left) && !bSelectorTextures) {
+                    for (int x = draw_x - half_brush; x < draw_x + half_brush; x++) {
+                        for (int y = draw_y - half_brush; y < draw_y + half_brush; y++) {
+                            if (x >= 0 && x < PahomEngine->ogl->width_texture &&
+                                y >= 0 && y < PahomEngine->ogl->height_texture)
+                            {
+                                PahomEngine->ogl->SetPixel(x, y, currentColorU32);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        PahomEngine->ogl->UpdateTexture();
+
+
+        ImGui::End();
     }
+}
     void  GameFrames::randomKickBratishka() {
 
         static ImVec2 BratishkaSize = { 256,256 };

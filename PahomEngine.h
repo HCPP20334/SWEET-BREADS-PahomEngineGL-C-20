@@ -690,6 +690,16 @@ struct KurlikAUDIO {
         }
         fileAssets.close();
     }
+    void cleanup(auto& device) {
+        if (device) {
+            device = nullptr;
+            std::cout << "  [PahomEngine::Audio] AudioDevice (" << &device << ") Cleanup\n";
+
+        }
+        else {
+            std::cout << "  [PahomEngine::Audio] AudioDevice (" << &device << ") not Allocated\n";
+        }
+    }
     void openFileDialog(std::string& fileName) {
         // common dialog box structure, setting all fields to 0 is important
         OPENFILENAMEA ofn;
@@ -1017,7 +1027,7 @@ struct STRINGSDATA {
 // 
 
 
-#define engine_bulid std::wstring(L"0.9.00 (pre-release)");
+#define engine_bulid std::wstring(L"0.9.52 (modify_release)");
 
 //
 struct ASSETSDATA {
@@ -1302,12 +1312,14 @@ struct EXCEPTIONS {
         std::cout << "Exception Error: " << t << std::endl;
 
     }
-
+    ~EXCEPTIONS() {
+        std::cout << " (PahomEngine) EXCEPTIONS deleted!\n";
+    }
     void GetProcessMemoryUsage() {
         PROCESS_MEMORY_COUNTERS pmc;
         pmc.cb = sizeof(pmc);
         GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-        i64MemoryUsageProcess = static_cast<int64_t>(pmc.WorkingSetSize);
+        i64MemoryUsageProcess = static_cast<int64_t>(pmc.PagefileUsage);
     }
     void Write(const std::string& t, void* pErrorSegment) {
         ErrorTextures = true;
@@ -1391,27 +1403,39 @@ struct EXCEPTIONS {
         SymCleanup(process);
         return ss.str();
     }
-
+    //std::unique_ptr<struct PahomEngineStruct> e;
     static LONG WINAPI CrashHandler(PEXCEPTION_POINTERS pExInfo) {
         std::wstring errorMsg;
         std::wstring errorCode;
         std::string_view errorMsgA;
         std::string_view errorCodeA;
         switch (pExInfo->ExceptionRecord->ExceptionCode) {
-        case EXCEPTION_ILLEGAL_INSTRUCTION: // 0xC000001D
-            errorCode = L"Iligal Instruction (0xC000001D)";
-            errorCodeA = "Iligal Instruction (0xC0000005)";
-            break;
-        case EXCEPTION_ACCESS_VIOLATION: // 0xC0000005
-            errorCode = L"Access Violation (0xC0000005)";
-            errorCodeA = "Access Violation (0xC0000005)";
-            break;
-        case EXCEPTION_STACK_OVERFLOW: // 0xC00000FD
-            errorCode = L"Stack Overflow (0xC00000FD)";
-            errorCodeA = "Stack Overflow (0xC00000FD)";
-            break;
+        case  STILL_ACTIVE: errorCode = L"PE::Still Active ((DWORD)0x00000103L)"; break;
+        case  EXCEPTION_ACCESS_VIOLATION: errorCode = L"PE::Access Violation ((DWORD)0xC0000005L)"; break;
+        case  EXCEPTION_DATATYPE_MISALIGNMENT: errorCode = L"PE::Datatype Misalignment ((DWORD)0x80000002L)"; break;
+        case  EXCEPTION_BREAKPOINT: errorCode = L"PE::Breakpoint ((DWORD)0x80000003L)"; break;
+        case  EXCEPTION_SINGLE_STEP: errorCode = L"PE::Single Step ((DWORD)0x80000004L)"; break;
+        case  EXCEPTION_ARRAY_BOUNDS_EXCEEDED: errorCode = L"PE::Array Bounds exceeded ((DWORD)0xC000008CL)"; break;
+        case  EXCEPTION_FLT_DENORMAL_OPERAND: errorCode = L"PE::Float denornal Operand ((DWORD)0xC000008DL)"; break;
+        case  EXCEPTION_FLT_DIVIDE_BY_ZERO: errorCode = L"PE::Float Divide by Zero ((DWORD)0xC000008EL)"; break;
+        case  EXCEPTION_FLT_INEXACT_RESULT: errorCode = L"PE::Float inexact Result ((DWORD)0xC000008FL)"; break;
+        case  EXCEPTION_FLT_INVALID_OPERATION: errorCode = L"PE::Float Invalid Operation ((DWORD)0xC0000090L)"; break;
+        case  EXCEPTION_FLT_OVERFLOW: errorCode = L"PE::Float Overflow ((DWORD)0xC0000091L)"; break;
+        case  EXCEPTION_FLT_STACK_CHECK: errorCode = L"PE::Float Stack Check ((DWORD)0xC0000092L)"; break;
+        case  EXCEPTION_FLT_UNDERFLOW: errorCode = L"PE::Float Underflow ((DWORD)0xC0000093L)"; break;
+        case  EXCEPTION_INT_DIVIDE_BY_ZERO: errorCode = L"PE::Int divide by Zero ((DWORD)0xC0000094L)"; break;
+        case  EXCEPTION_INT_OVERFLOW: errorCode = L"PE::Int Overflow ((DWORD)0xC0000095L)"; break;
+        case  EXCEPTION_PRIV_INSTRUCTION: errorCode = L"PE::Priv Instruction ((DWORD)0xC0000096L)"; break;
+        case  EXCEPTION_IN_PAGE_ERROR: errorCode = L"PE::In Page Error ((DWORD)0xC0000006L)"; break;
+        case  EXCEPTION_ILLEGAL_INSTRUCTION: errorCode = L"PE::Illegal Instruction ((DWORD)0xC000001DL)"; break;
+        case  EXCEPTION_NONCONTINUABLE_EXCEPTION: errorCode = L"PE::Noncontinuable Exception ((DWORD)0xC0000025L)"; break;
+        case  EXCEPTION_STACK_OVERFLOW: errorCode = L"PE::Stack Overflow ((DWORD)0xC00000FDL)"; break;
+        case  EXCEPTION_INVALID_DISPOSITION: errorCode = L"PE::Invalid Disposition ((DWORD)0xC0000026L)"; break;
+        case  EXCEPTION_GUARD_PAGE: errorCode = L"PE::Guard Page Violation ((DWORD)0x80000001L)"; break;
+        case  EXCEPTION_INVALID_HANDLE: errorCode = L"PE::Invalid Handle ((DWORD)0xC0000008L)"; break;
+
         default:
-            errorCode = L"Undefined Exception (0x" + std::wstring(std::to_string(pExInfo->ExceptionRecord->ExceptionCode).begin(), std::to_string(pExInfo->ExceptionRecord->ExceptionCode).end()) + L")";
+            errorCode = L"PE::Undefined Exception (0x" + std::wstring(std::to_string(pExInfo->ExceptionRecord->ExceptionCode).begin(), std::to_string(pExInfo->ExceptionRecord->ExceptionCode).end()) + L")";
             errorCodeA = "Undefined Exception (0x" + std::to_string(pExInfo->ExceptionRecord->ExceptionCode) + ")";
             break;
         }
@@ -1419,7 +1443,7 @@ struct EXCEPTIONS {
         std::wstring sEngineInfoW = L"PahomEngine " + engine_bulid;
         std::wstring stackTraceW = GetStackTrace(pExInfo);
         std::wstring wsapp = sEngineInfoW;
-        std::wstring titleProject = (wsapp+L"::Exception");
+        std::wstring titleProject = (wsapp + L"::Exception");
         std::ofstream logFile("crash_log.txt", std::ios::app);
         logFile << "PahomEngine crashed!" << std::endl;
         logFile << "========================" << std::endl;
@@ -1429,14 +1453,19 @@ struct EXCEPTIONS {
         logFile << "------------------------\n";
         logFile.close();
         std::wstring wlogo(logoPahom.begin(), logoPahom.end());
-        std::wstring msg = L"[exception]\n" + std::wstring(errorCode.begin(), errorCode.end()) + L" \n[stack_trace]\n" + std::wstring(stackTraceW.begin(), stackTraceW.end()) +
+        std::wstring msg =
+            L"\n\nОй братишка ну что ты!\nИгра крашнулась браток((\nВнизу информация почему так произошло\n------------------------------------------------------------------------------------\nPahomEngine::EXCEPTION: "
+            + std::wstring(errorCode.begin(), errorCode.end())
+            + L" \n--- Стек Ошибки ------------------------------------------------------------------\n\n"
+            + std::wstring(stackTraceW.begin(), stackTraceW.end()) +
+            +L" \n\n------------------------------------------------------------------------------------\n"
+            + L" \n build PahomEngineGL 0.9.4 (CXX20)\n"
             L"\nSee crash_log.txt for details.\nPlease send crash_log.txt to @hcppstudio.";
         stdoutColored(std::string(msg.begin(), msg.end()), 0x4F);
         std::ofstream fileLogError("crash_log_message.log");
         fileLogError << std::string(msg.begin(), msg.end()) << std::endl;
         fileLogError.close();
-        std::string sCommand = "cmd /c start ./RuntimeException.exe crash_log_message.log";
-        WinExec(sCommand.c_str(), 3);
+        MessageBoxW(GetActiveWindow(), msg.c_str(), L"SWEET BREADS", 0);
 
 
         return EXCEPTION_EXECUTE_HANDLER;
@@ -1447,6 +1476,7 @@ struct EXCEPTIONS {
         SymInitialize(GetCurrentProcess(), NULL, TRUE);
         SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME);
         SetUnhandledExceptionFilter(CrashHandler);
+
     }
 
     void Cleanup() {
@@ -1457,12 +1487,15 @@ struct Diffinity {
     int64_t i64diff[3] = {
         16,24,8
     };
-    std::vector<std::string_view >ccDiff = {
+    std::vector<std::string_view > ccDiff = {
         "Легкая",
         "Средняя",
         "Поехавший",
         "Рандомная"
     };
+    ~Diffinity() {
+        std::cout << " (PahomEngine) Diffinity deleted\n";
+    }
     int64_t i64id = 0;
     bool bRandScoreDiff = false;
     bool bRandDiff = false;
@@ -1470,7 +1503,7 @@ struct Diffinity {
     struct { int64_t i64buffer; int64_t i64buffer1; } diffArray[3] = {
         {4,6},
         {6,10},
-        {12,20},
+        {12,15},
     };
     void setDiff(int64_t i64idx) {
         if (i64idx >= 0 && i64idx < 3) {
@@ -1598,7 +1631,9 @@ struct cpu_bench64 {
 };
 
 struct GameUI {
-  
+    ~GameUI() {
+        std::cout << " (PahomEngine) GameUI deleted\n";
+    }
     void Message(std::string text, ImVec2 MaxSizeWindow, float step_to_speed, double64_t d64DelayToClear, bool* bCurrentWindowShowFlag, bool bShowCenter = false) {
         
         static ImVec2 sizeSmottly = { 10,10 };
@@ -1850,32 +1885,92 @@ struct GamepadButtons {
     }
    
 };
+struct vec_api {
+    template<typename _Vec, typename _Same>
+    void remover(_Vec& d, _Same obj) { d.erase(std::remove(d.begin(), d.end(), obj), d.end()); }
+    template<typename _Vec>
+    void resize(_Vec& d, uint64_t size) { d.resize(size); }
+    template<typename _Vec>
+    void reserve(_Vec& d, uint64_t size) { d.reserve(size); }
+    template<typename _Vec, typename _Same>
+    void addpb(_Vec& d, _Same obj) { d.push_back(obj); }
+    template<typename _Vec, typename _Same>
+    void addeb(_Vec& d, _Same obj) { d.emplace_back(obj); }
+    template<typename _Vec, typename... _Args>
+    void addeb(_Vec& d, _Args&&... args) { d.emplace_back(std::forward<_Args>(args)...); }
+    template<typename _Vec, typename... _Args>
+    void addpb(_Vec& d, _Args&&... args) { d.emplace_back(std::forward<_Args>(args)...); }
+    template<typename _Vec>
+    bool isEmpty(_Vec& d) { return d.empty(); }
+    template<typename _Vec, typename _v>
+    void eif(_Vec& d, std::string ifop, auto to) {
+        std::erase_if(d, [](_v& n) {
+            if ((uint8_t)ifop[0] == '>')  return n > to;
+            if ((uint8_t)ifop[0] == '<')  return n < to;
+            if ((uint8_t)ifop[0] == '>' && (uint8_t)ifop[1] == '=') return n >= to;
+            if ((uint8_t)ifop[0] == '<' && (uint8_t)ifop[1] == '=') return n <= to;
+            if ((uint8_t)ifop[0] == '=' && (uint8_t)ifop[1] == '=') return n > to;
+            });
+    }
+};
+template<typename _Same>
+using atc = std::atomic<_Same>;
+struct threads {
+    std::vector <std::jthread> _threads;
+    vec_api vec;
+    template<typename..._Args>
+    void loadToJThread(int32_t threads_count, _Args&&...args) {
+        _threads.resize(threads_count + 1);
+        _threads[threads_count] = std::jthread(std::forward<_Args>(args)...);
+    }
+    template<typename..._Args>
+    void loadToJThreads(int32_t threads_count, _Args&&...args) {
+        vec.reserve(_threads, threads_count);
+        for (int n = 0; n < threads_count; n++) {
+            vec.addeb(_threads, std::forward<_Args>(args)...);
+        }
+    }
+    // std::mutex same;
 
+
+};
 struct PahomEngineStruct {
     //
-    std::string sBuild = "0.9.00 (pre-release)";
-    std::string sBuildGame = "0.9.00 (pre-release)";
+    std::string sBuild = "0.9.52 (modify_release)";
+    std::string sBuildGame = "0.9.22 (release)";
     //
-    std::wstring sWBuild = L"0.9.00 (pre-release)";
-    std::wstring sWBuildGame = L"0.9.00 (pre-release)";
+    std::wstring sWBuild = L"0.9.52 (modify_release)";
+    std::wstring sWBuildGame = L"0.9.22 (release)";
     //
     bool CVsync = true;
     uint64_t fCPoint = 0;
     int64_t fStep = 13;
-    std::unique_ptr<CImage> img = std::make_unique<CImage>();
-    std::unique_ptr<JoyStickAPI> ptrGamepad1 = std::make_unique<JoyStickAPI>(1);
-    std::unique_ptr<cpu_bench64> Bench64ptr = std::make_unique<cpu_bench64>();
-    std::unique_ptr<GameUI> UI = std::make_unique<GameUI>();
-    std::unique_ptr<GamepadButtons> GamepadUI = std::make_unique<GamepadButtons>();
+    void setSizePahom(int64_t width, int64_t height) {
+        i64PahomSize[0] = width;
+        i64PahomSize[1] = height;
+    }
+    CImage         *img         = new CImage();
+    JoyStickAPI    *ptrGamepad1 = new JoyStickAPI(1);
+    cpu_bench64    *Bench64ptr  = new cpu_bench64();
+    GameUI         *UI          = new GameUI();
+    GamepadButtons *GamepadUI   = new GamepadButtons();
     std::random_device rd;
 
     //
-
+    bool sse_41() {
+        int cpuInfo[4];
+        __cpuid(cpuInfo, 0x00000001);
+        return (cpuInfo[2] & (1 << 19)) != 0;
+    }
     bool bIsRandomEngineUsed = true;
-
+    ~PahomEngineStruct() {
+        std::cout << " (PahonEngine) " << sBuild << " cleanup!\n";
+    }
     //
     struct GameSettingsOffsets {
-
+        ~GameSettingsOffsets() {
+            std::cout << " (PahomEngine) GameSettingsOffsets deleted!\n";
+        }
         std::string sSettingsBufferString,
             volume_atr = "volume=",
             cpu_atr = "cpu_delay=";
@@ -1896,6 +1991,7 @@ struct PahomEngineStruct {
         bool bFlagEnableAnimationToImageFadeInOut = false;
         bool bUseLowTextures = false;
         bool bUseLowAudioQuality = false;
+        bool bFlagXor64random = false;
         std::string preset_ = "preset=";
         void ParseConfig() {
             std::ifstream PahomEngineSettings("PahomEngine.cfg");
@@ -1915,6 +2011,14 @@ struct PahomEngineStruct {
                     }
                     if (sSettingsBufferString == "random_engine=false") {
                         bFlagRandomEngine = false;
+                        //Pengine.log("PESettings:: Применен random_engine=false", 1);
+                    }
+                    if (sSettingsBufferString == "xor64random=true") {
+                        bFlagXor64random = true;
+                        // Pengine.log("PESettings:: Применен random_engine=true", 1);
+                    }
+                    if (sSettingsBufferString == "xor64random=false") {
+                        bFlagXor64random = false;
                         //Pengine.log("PESettings:: Применен random_engine=false", 1);
                     }
                     if (sSettingsBufferString.rfind(volume_atr, 0) == 0) {
@@ -2011,57 +2115,35 @@ struct PahomEngineStruct {
         }
     };
     std::unique_ptr<GameSettingsOffsets> PESettings = std::make_unique<GameSettingsOffsets>();
-    struct mathValues {
+    struct mathValues { 
+        struct xor64 {
+            xor64() {
+                std::cout << " (PahomEngine->math->xor64) allocated\n";
+            }
+            ~xor64() {
+                std::cout << " (PahomEngine->math->xor64) deleted\n";
+            }
+            uint64_t random() {
+                uint64_t seed_xor64 = __rdtsc();
+                seed_xor64 ^= seed_xor64 << 16;
+                seed_xor64 ^= seed_xor64 >> 8;
+                seed_xor64 ^= seed_xor64 << 4;
+               // std::cout <<" seed_xor64:" << seed_xor64 << "\n";
+                return seed_xor64;
+            }
+
+        };
+        xor64* xr64 = new xor64();
         std::random_device rd;
         std::mt19937 gen;
         bool bIsRandomEngineUsed = true;
-        template <typename Tm>
-        Tm minv(Tm a, Tm b) {
-            return std::min<Tm>(a, b);
+        bool bIsRandomXor64 = false;
+        ~mathValues() {
+            std::cout << " (PahomEngine) math deleted\n";
+            delete xr64;
         }
-        template <typename Tm>
-        Tm maxv(Tm a, Tm b) {
-            return std::max<Tm>(a, b);
-        }
-        template <typename Tm>
-        Tm abs(Tm x) {
-            return std::abs(x);
-        }
-        // test func
-        template <typename Tm>
-        Tm fade_add(Tm *x, Tm interval, Tm max_interval,Tm add_part_count) {
-            static Tm a = 0;
-            std::cout << std::format("{} interval:{} max_interval:{} add:{}\n", *x, interval, max_interval, add_part_count);
-            a += interval;
-            if (a > max_interval) {
-                *x += add_part_count;
-                a = 0;
-            }
-            return *x;   
-        }
-        // my find func
-       /* template <typename T>
-        std::string_view find(T str, T sub)
-        {
-            std::string_view str_buf = std::to_string(str);
-            std::string_view sub_buf = std::to_string(sub);
-            std::string_view buf;
-            for (int i = 0; (i = str_buf.find(sub_buf, i)) != std::string_view::npos; i = i + sub_buf.size())
-            {
-                buf += sub_buf;
-            }
-
-            return buf;
-        }*/
-        // find V test func
-        bool findV(int64_t v, int64_t find_v) {
-            std::string_view strBuffer = std::format("{}", v);
-            int32_t sizeBuffer = strBuffer.size();
-            for (int32_t cint = 0; cint < sizeBuffer; cint++) {
-                if (std::format("{}", strBuffer[cint]) == std::format("{}", find_v)) {
-                    return true;
-                }
-            }  
+        mathValues() {
+            std::cout << " (PahomEngine) math allocated\n";
         }
         // set flag to use random engine e.d random_device to #include <random>
         // in true ||  false
@@ -2079,6 +2161,7 @@ struct PahomEngineStruct {
         Tm random(Tm value_max, bool bIsUseCachedRandom = false) {
             if(bIsRandomEngineUsed)
             {
+                //std::cout << " rdrand used\n";
                 if (!bIsUseCachedRandom)
                 {
 
@@ -2108,7 +2191,9 @@ struct PahomEngineStruct {
                 }
             }
             else {
-                return static_cast<Tm>(rand() % (int)value_max);
+                Tm rand_value = static_cast<Tm>((bIsRandomXor64 ? (xr64->random() % (uint64_t)value_max) : (rand() % (int)value_max)));
+                //std::cout <<" random_xor64=" << bIsRandomXor64 << " "<< rand_value << "\n";
+                return rand_value;
             }
         }
         template <typename value>
@@ -2122,6 +2207,24 @@ struct PahomEngineStruct {
         }
     };
     struct castValues {
+       // Test Func. Universal Add
+       // template <typename T>
+       //constexpr T add(T a, T b) {
+       //     if constexpr (std::is_arithmetic_v<T> || std::is_arithmetic_v<T>) {
+       //         return a + b;
+       //     }
+       //     else {
+       //         std::string sv;
+       //         if constexpr (std::is_convertible_v<T, std::string>) {
+       //             sv = (a + b);
+       //             return sv;
+       //         }
+       //     }
+
+       // }
+        ~castValues() {
+            std::cout << " (PahomEngine) castValues deleted!\n";
+        }
         bool bUsedStaticCast = false;
         template <typename Tm>
         Tm cast_all(Tm type) {
@@ -2161,7 +2264,9 @@ struct PahomEngineStruct {
         }
     };
     struct bufferio {
-        
+        ~bufferio() {
+            std::cout << " (PahomEngine) bufferio deleted!\n";
+        }
         template <class... Tm>
         void print(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
           std::cout<< _STD vformat(_Fmt.get(), _STD make_format_args(_Args...));
@@ -2208,11 +2313,21 @@ struct PahomEngineStruct {
         apiVersion gl_ver;
         
     };
-    std::unique_ptr<GLM> ogl = std::make_unique<GLM>();
-    std::unique_ptr<bufferio>   cio  = std::make_unique<bufferio>();
-    std::unique_ptr<castValues> cast = std::make_unique<castValues>();
-    std::unique_ptr<mathValues> math = std::make_unique<mathValues>();
-    std::unique_ptr<gpuRenderOGL> Render = std::make_unique<gpuRenderOGL>();
+    GLM *ogl = new GLM();
+    bufferio     *cio    = new bufferio();
+    castValues   *cast   = new castValues();
+    mathValues   *math   = new mathValues();
+    gpuRenderOGL *Render = new gpuRenderOGL();
+    void ShutdownEngine() {
+        if (img)         delete img;
+        if (ptrGamepad1) delete ptrGamepad1;
+        if (Bench64ptr)  delete Bench64ptr;
+        if (UI)          delete UI;
+        if (cio)         delete cio;
+        if (cast)        delete cast;
+        if (math)        delete math;
+        if (Render)      delete Render;
+    }
     void StyleLoad();
     void StyleLoadBlur();
     ImVec4 RGBA(float r, float g, float b, float a);
@@ -2291,8 +2406,14 @@ struct PahomEngineStruct {
     bool bIsImGuiAGamepadAPIUsed = false;
     bool bColoredConsole = false;
     bool bRenderPaused = false;
+    bool bIsEnableHitbox = false;
+    bool bIsCollisionOK = false;
     int64_t i64RandBoost = 0;
     int64_t i64ValuesRands[4] = { 50 , 100, 256, 777 };
+    const std::pair<int32_t, int32_t> window_size_preset[7] = {
+        {640, 480}, {800, 600}, {1024, 768}, {1280, 720},
+        {1366, 768}, {1600, 900}, {1920, 1080}
+    };
     HANDLE hConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
     bool GetGamepadKey(int64_t iKey, int iMaxDelay);
     void Text(ImVec4 col, std::string text);
@@ -2395,6 +2516,7 @@ struct PahomEngineStruct {
     }
     int32_t SetSizeHWND(HWND hwnd, int32_t x, int32_t y);
     void selectedItem(bool v, float rounding);
+    void selectedItemCol(bool v, bool v1);
     void stdoutColored(std::string out, int16_t i16colorText);
     bool bLogEnabled = false;
     //
@@ -2416,6 +2538,15 @@ void PahomEngineStruct::selectedItem(bool v,float rounding = 20) {
     ImDrawList* dw = ImGui::GetWindowDrawList();
     if (v) {
         dw->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(RGBA(255, 255, 255, 255)), rounding, 0,3);
+    }
+}
+void PahomEngineStruct::selectedItemCol(bool v,bool v1) {
+    float rounding = 0;
+    ImDrawList* dw = ImGui::GetWindowDrawList();
+    ImU32 im32Color = 0;
+    im32Color = v1 ? ImGui::GetColorU32(RGBA(0, 255, 130, 255)) : ImGui::GetColorU32(RGBA(255, 0, 130, 255));
+    if (v) {
+        dw->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), im32Color, rounding, 0, 3);
     }
 }
 //add hex to rgba @finich_15
@@ -2862,7 +2993,7 @@ void PahomEngineStruct::StyleLoadBlur() {
     style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
     style.GrabMinSize = 20.0f;
 }
-auto PahomEngine = std::make_unique<PahomEngineStruct>();
+PahomEngineStruct *PahomEngine = new PahomEngineStruct();
 namespace PE {
     template <class... Tm>
     void print(const std::format_string<Tm...> _Fmt, Tm&&... _Args) {
