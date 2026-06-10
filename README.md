@@ -15,7 +15,7 @@ SWEET BREADS 0.9.52
 Важно: Ассеты игры в релизном архиве.
 
 Для сборки нужна Visual Studio 2022 или Visual Studio 2026
-
+И возможно ImGui при Fallback 
 
 English
 
